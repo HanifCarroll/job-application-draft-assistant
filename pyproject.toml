@@ -1,0 +1,38 @@
+[project]
+name = "upwork-proposal-assistant"
+version = "0.1.0"
+description = "Local Upwork proposal drafting assistant with auditable Codex-backed drafts."
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "fastapi>=0.115.0",
+    "pydantic>=2.10.0",
+    "typer>=0.15.0",
+    "uvicorn[standard]>=0.32.0",
+]
+
+[project.scripts]
+upa = "upwork_proposal_assistant.cli:app"
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28.0",
+    "mypy>=1.14.0",
+    "pytest>=8.3.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.mypy]
+python_version = "3.13"
+strict = true
+mypy_path = "src"
+
+[[tool.mypy.overrides]]
+module = ["uvicorn.*"]
+ignore_missing_imports = true

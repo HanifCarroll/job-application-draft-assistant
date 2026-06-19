@@ -1,0 +1,1 @@
+"""Local Upwork proposal assistant."""

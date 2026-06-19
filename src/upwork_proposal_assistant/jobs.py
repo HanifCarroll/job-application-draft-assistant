@@ -1,0 +1,83 @@
+from __future__ import annotations
+
+from concurrent.futures import ThreadPoolExecutor
+from datetime import UTC, datetime
+import logging
+
+from upwork_proposal_assistant.codex_provider import CodexProvider
+from upwork_proposal_assistant.draft_pipeline import run_draft_pipeline
+from upwork_proposal_assistant.job_store import DraftJobRecord, DraftJobStore
+from upwork_proposal_assistant.models import ContextBundle, ContextSelection, DraftJobCreated, DraftJobStage, DraftJobStatus, DraftRequest
+from upwork_proposal_assistant.storage import DraftStore
+
+
+logger = logging.getLogger(__name__)
+
+
+class DraftJobRunner:
+    def __init__(
+        self,
+        context: ContextBundle,
+        codex: CodexProvider,
+        draft_store: DraftStore,
+        job_store: DraftJobStore,
+    ) -> None:
+        self.context = context
+        self.codex = codex
+        self.draft_store = draft_store
+        self.job_store = job_store
+        self._executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="upwork-draft")
+
+    def enqueue(self, request: DraftRequest) -> DraftJobCreated:
+        job = self.job_store.create(request)
+        self._executor.submit(self._run, job.id, request)
+        return job
+
+    def shutdown(self) -> None:
+        self._executor.shutdown(wait=False, cancel_futures=True)
+
+    def _run(self, job_id: str, request: DraftRequest) -> None:
+        try:
+            result = run_draft_pipeline(
+                request=request,
+                context=self.context,
+                codex=self.codex,
+                store=self.draft_store,
+                on_stage=lambda stage, selection: self._record_stage(job_id, stage, selection),
+            )
+            self.job_store.complete(job_id, result.stored.id)
+        except Exception as exc:
+            logger.exception("Draft job failed: %s", job_id)
+            self.job_store.fail(job_id, str(exc) or exc.__class__.__name__)
+
+    def _record_stage(self, job_id: str, stage: DraftJobStage, selection: ContextSelection | None) -> None:
+        if selection is None:
+            self.job_store.update_stage(job_id, stage)
+            return
+        self.job_store.save_selection(job_id, selection, stage)
+
+
+def build_job_status(record: DraftJobRecord, draft_store: DraftStore) -> DraftJobStatus:
+    result = draft_store.get_response(record.result_draft_id) if record.result_draft_id is not None else None
+    selected_angle = record.selection.angle.label if record.selection is not None else ""
+    selected_projects = [project.slug for project in record.selection.projects] if record.selection is not None else []
+    return DraftJobStatus(
+        id=record.id,
+        status=record.status,
+        stage=record.stage,
+        elapsed_seconds=_elapsed_seconds(record.created_at),
+        selected_angle=selected_angle,
+        selected_projects=selected_projects,
+        result=result,
+        error=record.error,
+        created_at=record.created_at,
+        updated_at=record.updated_at,
+    )
+
+
+def _elapsed_seconds(created_at: str) -> float:
+    try:
+        created = datetime.fromisoformat(created_at)
+    except ValueError:
+        return 0.0
+    return max(0.0, (datetime.now(UTC) - created).total_seconds())

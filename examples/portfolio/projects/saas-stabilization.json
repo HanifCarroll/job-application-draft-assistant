@@ -1,0 +1,23 @@
+{
+  "slug": "saas-stabilization",
+  "title": "Production SaaS Stabilization",
+  "description": "Took over an existing production SaaS application, mapped the highest-risk flows, and shipped incremental fixes around onboarding, billing, permissions, and background work.",
+  "proofType": "example",
+  "service": "Full-stack product engineering",
+  "track": "workflow_automation",
+  "role": "Senior full-stack engineer",
+  "timeline": "Ongoing maintenance and feature delivery",
+  "technologies": ["React", "TypeScript", "Python", "PostgreSQL", "Stripe"],
+  "result": [
+    "Identified critical production risks before proposing larger changes.",
+    "Improved reliability through focused bug fixes, clearer service boundaries, and targeted tests.",
+    "Kept the product moving without requiring a rewrite."
+  ],
+  "deliveryHighlights": [
+    "Repo and backlog audit",
+    "Production bug triage",
+    "Incremental feature delivery",
+    "Test coverage around critical paths"
+  ],
+  "sourceUrl": ""
+}

@@ -1,0 +1,147 @@
+from __future__ import annotations
+
+from datetime import UTC, datetime
+from typing import Any, Literal
+from uuid import uuid4
+
+from pydantic import BaseModel, ConfigDict, Field
+
+
+class UpworkProject(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    title: str = ""
+    description: str = ""
+    budget: str = ""
+    skills: list[str] = Field(default_factory=list)
+    client_context: str = ""
+    url: str = ""
+    captured_at: str = Field(default_factory=lambda: datetime.now(UTC).isoformat())
+
+    def search_text(self) -> str:
+        return " ".join([self.title, self.description, self.budget, " ".join(self.skills), self.client_context])
+
+
+class DraftRequest(BaseModel):
+    project: UpworkProject
+    user_notes: str = ""
+    proposal_style: str = "concise"
+
+
+class OfferAngle(BaseModel):
+    key: str
+    label: str
+    use_when: list[str]
+    promise: str
+    source_ref: str
+
+
+class ContextProject(BaseModel):
+    slug: str
+    title: str
+    track: str
+    proof_type: str
+    service: str
+    role: str = ""
+    timeline: str = ""
+    technologies: list[str] = Field(default_factory=list)
+    best_for: list[str] = Field(default_factory=list)
+    claim: str
+    source_url: str = ""
+    source_refs: dict[str, str] = Field(default_factory=dict)
+
+    def search_text(self) -> str:
+        return " ".join([self.title, self.track, self.service, self.role, " ".join(self.technologies), " ".join(self.best_for), self.claim])
+
+
+class ContextBundle(BaseModel):
+    profile: str
+    offers: list[OfferAngle]
+    projects: list[ContextProject]
+
+
+class SourceEvidence(BaseModel):
+    ref: str
+    text: str
+
+
+class AuditDecision(BaseModel):
+    audit_id: str
+    decision: str
+    caused_by: list[str]
+    rationale: str
+
+
+class ClaimTrace(BaseModel):
+    text: str
+    caused_by: list[str]
+
+
+class ContextSelection(BaseModel):
+    angle: OfferAngle
+    projects: list[ContextProject]
+    source_evidence: list[SourceEvidence]
+    selection_decisions: list[AuditDecision]
+
+
+class DraftResult(BaseModel):
+    proposal: str
+    angle: str
+    selected_projects: list[str]
+    decisions: list[AuditDecision]
+    claims: list[ClaimTrace]
+    warnings: list[str] = Field(default_factory=list)
+
+    @classmethod
+    def empty(cls) -> "DraftResult":
+        return cls(proposal="", angle="", selected_projects=[], decisions=[], claims=[], warnings=[])
+
+
+class StoredDraft(BaseModel):
+    id: str = Field(default_factory=lambda: uuid4().hex)
+    request: DraftRequest
+    selection: ContextSelection
+    first_pass: dict[str, Any]
+    final_pass: dict[str, Any]
+    created_at: str = Field(default_factory=lambda: datetime.now(UTC).isoformat())
+
+
+class DraftResponse(BaseModel):
+    id: str
+    proposal: str
+    angle: str
+    selected_projects: list[str]
+    decisions: list[AuditDecision]
+    claims: list[ClaimTrace]
+    warnings: list[str] = Field(default_factory=list)
+    created_at: str
+
+
+DraftJobState = Literal["queued", "running", "succeeded", "failed"]
+DraftJobStage = Literal["queued", "selecting_context", "codex_draft", "humanizer", "saving", "done", "failed"]
+
+
+class DraftJobCreated(BaseModel):
+    id: str
+    status: DraftJobState
+    stage: DraftJobStage
+    created_at: str
+    updated_at: str
+
+
+class DraftJobStatus(BaseModel):
+    id: str
+    status: DraftJobState
+    stage: DraftJobStage
+    elapsed_seconds: float
+    selected_angle: str = ""
+    selected_projects: list[str] = Field(default_factory=list)
+    result: DraftResponse | None = None
+    error: str | None = None
+    created_at: str
+    updated_at: str
+
+
+class ReindexResponse(BaseModel):
+    project_count: int
+    context_dir: str

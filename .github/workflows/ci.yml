@@ -1,0 +1,37 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version-file: .python-version
+
+      - name: Install Python dependencies
+        run: uv sync --dev
+
+      - name: Type check
+        run: uv run mypy src tests
+
+      - name: Test
+        run: uv run pytest
+
+      - name: Validate extension JavaScript
+        run: node --check extension/background.js && node --check extension/popup.js && node --check extension/content_script.js && node --check extension/options.js
+
+      - name: Validate JSON files
+        run: python -m json.tool extension/manifest.json >/dev/null && python -m json.tool schemas/draft_response.schema.json >/dev/null

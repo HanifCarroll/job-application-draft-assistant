@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Upwork Proposal Assistant Settings</title>
+    <link rel="stylesheet" href="options.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <header>
+        <h1>Upwork Proposal Assistant</h1>
+        <p>Configure the local backend used by the popup.</p>
+      </header>
+
+      <form id="settings">
+        <label>
+          Backend URL
+          <input id="backend-url" type="url" autocomplete="off" spellcheck="false" />
+        </label>
+
+        <div class="actions">
+          <button id="save" class="primary" type="submit">Save</button>
+          <button id="test" type="button">Test</button>
+        </div>
+
+        <p id="status" role="status"></p>
+      </form>
+    </main>
+    <script src="options.js"></script>
+  </body>
+</html>

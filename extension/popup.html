@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Upwork Proposal Assistant</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <header class="topbar">
+        <div>
+          <h1>Proposal draft</h1>
+          <p id="status">Waiting for Upwork context.</p>
+        </div>
+        <div class="topbar-actions">
+          <button id="settings" type="button">Settings</button>
+          <button id="extract" type="button">Extract</button>
+        </div>
+      </header>
+
+      <div id="progress" class="progress" hidden>
+        <div class="progress-track" aria-hidden="true">
+          <div id="progress-bar" class="progress-bar"></div>
+        </div>
+        <div class="progress-meta">
+          <span id="stage">Queued</span>
+          <span id="elapsed">0s</span>
+        </div>
+      </div>
+
+      <label>
+        Title
+        <input id="title" type="text" autocomplete="off" />
+      </label>
+
+      <label>
+        Description
+        <textarea id="description" rows="7"></textarea>
+      </label>
+
+      <div class="grid">
+        <label>
+          Budget
+          <input id="budget" type="text" autocomplete="off" />
+        </label>
+        <label>
+          Skills
+          <input id="skills" type="text" autocomplete="off" />
+        </label>
+      </div>
+
+      <label>
+        Notes for this proposal
+        <textarea id="notes" rows="3" placeholder="Optional angle, concern, or proof point to emphasize."></textarea>
+      </label>
+
+      <button id="draft" class="primary" type="button">Draft with Codex</button>
+
+      <section class="result" aria-live="polite">
+        <div class="result-header">
+          <h2>Proposal</h2>
+          <button id="copy" type="button" disabled>Copy</button>
+        </div>
+        <textarea id="proposal" rows="8" readonly></textarea>
+      </section>
+
+      <details>
+        <summary>Audit trail</summary>
+        <pre id="audit"></pre>
+      </details>
+    </main>
+    <script src="popup.js"></script>
+  </body>
+</html>

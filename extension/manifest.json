@@ -1,0 +1,23 @@
+{
+  "manifest_version": 3,
+  "name": "Upwork Proposal Assistant",
+  "version": "0.1.0",
+  "description": "Extract Upwork job context and draft auditable proposals through a local Python/Codex backend.",
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Draft proposal"
+  },
+  "options_page": "options.html",
+  "background": {
+    "service_worker": "background.js"
+  },
+  "permissions": ["activeTab", "scripting", "storage"],
+  "host_permissions": ["https://www.upwork.com/*", "http://127.0.0.1/*", "http://localhost/*"],
+  "content_scripts": [
+    {
+      "matches": ["https://www.upwork.com/*"],
+      "js": ["content_script.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

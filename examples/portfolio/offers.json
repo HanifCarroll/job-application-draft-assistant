@@ -1,0 +1,23 @@
+[
+  {
+    "key": "saas_stabilization",
+    "label": "SaaS stabilization",
+    "use_when": ["production", "saas", "bug fixes", "existing codebase", "onboarding", "billing"],
+    "promise": "Map the riskiest production areas first, then ship small fixes and product work without turning the project into a rewrite.",
+    "source_ref": "example.offers.saas_stabilization"
+  },
+  {
+    "key": "ai_workflow_system",
+    "label": "AI workflow system",
+    "use_when": ["ai", "llm", "agent", "rag", "automation", "audit", "evidence"],
+    "promise": "Build grounded AI workflows with explicit evidence, review points, and traceable decisions.",
+    "source_ref": "example.offers.ai_workflow_system"
+  },
+  {
+    "key": "internal_tooling",
+    "label": "Internal tooling",
+    "use_when": ["admin", "dashboard", "operations", "manual workflow", "spreadsheet"],
+    "promise": "Turn messy operational workflows into small tools with clear ownership, useful defaults, and maintainable code.",
+    "source_ref": "example.offers.internal_tooling"
+  }
+]

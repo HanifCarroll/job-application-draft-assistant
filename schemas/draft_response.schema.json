@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["proposal", "angle", "selected_projects", "decisions", "claims", "warnings"],
+  "properties": {
+    "proposal": { "type": "string" },
+    "angle": { "type": "string" },
+    "selected_projects": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "decisions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["audit_id", "decision", "caused_by", "rationale"],
+        "properties": {
+          "audit_id": { "type": "string" },
+          "decision": { "type": "string" },
+          "caused_by": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "rationale": { "type": "string" }
+        }
+      }
+    },
+    "claims": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["text", "caused_by"],
+        "properties": {
+          "text": { "type": "string" },
+          "caused_by": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        }
+      }
+    },
+    "warnings": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  }
+}
