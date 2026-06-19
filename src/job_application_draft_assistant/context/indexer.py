@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from upwork_proposal_assistant.models import ContextBundle, ContextProject, OfferAngle
+from job_application_draft_assistant.models import ContextBundle, ContextProject, OfferAngle
 
 
 DEFAULT_PROFILE_TEXT = """# Your Name
@@ -91,7 +91,7 @@ def load_context(context_dir: Path) -> ContextBundle:
     offers_path = context_dir / "offers.json"
     projects_path = context_dir / "projects.jsonl"
     if not profile_path.exists() or not offers_path.exists() or not projects_path.exists():
-        raise FileNotFoundError(f"Context files missing in {context_dir}. Run `upa reindex` first.")
+        raise FileNotFoundError(f"Context files missing in {context_dir}. Run `jada reindex` first.")
 
     profile = profile_path.read_text(encoding="utf-8")
     offers = [OfferAngle.model_validate(item) for item in json.loads(offers_path.read_text(encoding="utf-8"))]

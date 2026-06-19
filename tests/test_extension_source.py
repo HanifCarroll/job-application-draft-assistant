@@ -11,7 +11,8 @@ def test_extension_has_no_stale_compatibility_path() -> None:
     popup = (REPO_ROOT / "extension" / "popup.js").read_text(encoding="utf-8")
 
     assert "leg" + "acy" not in content_script.lower()
-    assert "UPWORK_PROPOSAL_EXTRACT" not in content_script
+    assert "JOB_APPLICATION_DRAFT_EXTRACT" not in content_script
+    assert "UPWORK" + "_PROPOSAL_EXTRACT" not in content_script
     assert "response.project" not in popup
     assert "TECH_SKILLS" not in content_script
     assert "Just not interested" not in content_script

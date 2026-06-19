@@ -1,8 +1,8 @@
 (() => {
-  if (globalThis.__upworkProposalAssistantLoaded) {
+  if (globalThis.__jobApplicationDraftAssistantLoaded) {
     return;
   }
-  globalThis.__upworkProposalAssistantLoaded = true;
+  globalThis.__jobApplicationDraftAssistantLoaded = true;
 
   function clean(text) {
     return (text || "").replace(/\s+/g, " ").trim();

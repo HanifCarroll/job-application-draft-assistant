@@ -1,4 +1,4 @@
-# Application Draft Assistant
+# Job Application Draft Assistant
 
 A local Chrome extension and Python backend for drafting auditable job applications with `codex exec`.
 
@@ -45,11 +45,11 @@ Chrome popup
 ## Quick Start
 
 ```bash
-git clone https://github.com/HanifCarroll/upwork-proposal-assistant.git
-cd upwork-proposal-assistant
+git clone https://github.com/HanifCarroll/job-application-draft-assistant.git
+cd job-application-draft-assistant
 uv sync
-uv run upa reindex
-uv run upa serve
+uv run jada reindex
+uv run jada serve
 ```
 
 Then load the Chrome extension:
@@ -88,24 +88,24 @@ Supported environment variables:
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `UPWORK_PROPOSAL_PORTFOLIO_ROOT` | `examples/portfolio` | Source directory for profile, offers, and project proof points. |
-| `UPWORK_PROPOSAL_CONTEXT_DIR` | `data/context` | Generated context cache. |
-| `UPWORK_PROPOSAL_RUNTIME_DIR` | `.runtime` | Runtime directory for local backend artifacts. |
-| `UPWORK_PROPOSAL_PDF_OUTPUT_DIR` | `.runtime/cover-letters` | Directory where generated cover letter PDFs are saved. |
-| `UPWORK_PROPOSAL_RESUME_PDF_PATH` | `~/Library/Mobile Documents/com~apple~CloudDocs/Downloads/Hanif-Carroll-Resume.pdf` | Resume PDF used for cover letter letterhead data. Phone-like contact items are omitted from exports. |
-| `UPWORK_PROPOSAL_DB_PATH` | `.runtime/drafts.db` | SQLite database path. |
-| `UPWORK_PROPOSAL_CODEX_RUNS_DIR` | `.runtime/codex-runs` | Per-run Codex workspaces. |
-| `UPWORK_PROPOSAL_CODEX_BINARY` | `codex` | Codex CLI executable. |
-| `UPWORK_PROPOSAL_CODEX_MODEL` | `gpt-5.5` | Model passed explicitly to `codex exec`. |
-| `UPWORK_PROPOSAL_CODEX_REASONING_EFFORT` | `low` | Reasoning effort passed explicitly to `codex exec`. |
-| `UPWORK_PROPOSAL_CODEX_TIMEOUT_SECONDS` | `180` | Timeout per Codex pass. |
-| `UPWORK_PROPOSAL_MAX_WORKERS` | `5` | Maximum concurrent async draft jobs. |
+| `JOB_APPLICATION_DRAFT_PORTFOLIO_ROOT` | `examples/portfolio` | Source directory for profile, offers, and project proof points. |
+| `JOB_APPLICATION_DRAFT_CONTEXT_DIR` | `data/context` | Generated context cache. |
+| `JOB_APPLICATION_DRAFT_RUNTIME_DIR` | `.runtime` | Runtime directory for local backend artifacts. |
+| `JOB_APPLICATION_DRAFT_PDF_OUTPUT_DIR` | `.runtime/cover-letters` | Directory where generated cover letter PDFs are saved. |
+| `JOB_APPLICATION_DRAFT_RESUME_PDF_PATH` | `~/Library/Mobile Documents/com~apple~CloudDocs/Downloads/Hanif-Carroll-Resume.pdf` | Resume PDF used for cover letter letterhead data. Phone-like contact items are omitted from exports. |
+| `JOB_APPLICATION_DRAFT_DB_PATH` | `.runtime/drafts.db` | SQLite database path. |
+| `JOB_APPLICATION_DRAFT_CODEX_RUNS_DIR` | `.runtime/codex-runs` | Per-run Codex workspaces. |
+| `JOB_APPLICATION_DRAFT_CODEX_BINARY` | `codex` | Codex CLI executable. |
+| `JOB_APPLICATION_DRAFT_CODEX_MODEL` | `gpt-5.5` | Model passed explicitly to `codex exec`. |
+| `JOB_APPLICATION_DRAFT_CODEX_REASONING_EFFORT` | `low` | Reasoning effort passed explicitly to `codex exec`. |
+| `JOB_APPLICATION_DRAFT_CODEX_TIMEOUT_SECONDS` | `180` | Timeout per Codex pass. |
+| `JOB_APPLICATION_DRAFT_MAX_WORKERS` | `5` | Maximum concurrent async draft jobs. |
 
 Example:
 
 ```bash
-UPWORK_PROPOSAL_PORTFOLIO_ROOT=/path/to/my/context uv run upa reindex
-uv run upa serve
+JOB_APPLICATION_DRAFT_PORTFOLIO_ROOT=/path/to/my/context uv run jada reindex
+uv run jada serve
 ```
 
 ## Context Source Format
@@ -159,7 +159,7 @@ Each project JSON should include proof points the proposal system is allowed to 
 The generated cache in `data/context` is intentionally ignored by Git. Rebuild it with:
 
 ```bash
-uv run upa reindex
+uv run jada reindex
 ```
 
 The backend runs `codex exec` with `--ignore-user-config` and `--ignore-rules` so unrelated local MCP servers, plugins, hooks, or execpolicy files do not slow down or destabilize proposal generation. Model and reasoning effort are passed explicitly through the environment variables above.
@@ -209,7 +209,7 @@ The backend stores the original request and one draft JSON payload. The draft in
 
 ## PDF Cover Letters
 
-PDF export is available for completed `cover_letter` drafts. The backend renders the saved `draft_text` without rewriting it, adds a restrained resume-derived letterhead, and saves the file under `UPWORK_PROPOSAL_PDF_OUTPUT_DIR`.
+PDF export is available for completed `cover_letter` drafts. The backend renders the saved `draft_text` without rewriting it, adds a restrained resume-derived letterhead, and saves the file under `JOB_APPLICATION_DRAFT_PDF_OUTPUT_DIR`.
 
 The default resume source is the iCloud Downloads resume path shown in Configuration. The exporter reads only the resume header/contact lines needed for letterhead and skips phone-like contact items.
 

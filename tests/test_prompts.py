@@ -3,8 +3,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from upwork_proposal_assistant.models import ContextBundle, DraftRequest, OpportunitySnapshot
-from upwork_proposal_assistant.prompts import build_draft_prompt
+from job_application_draft_assistant.models import ContextBundle, DraftRequest, OpportunitySnapshot
+from job_application_draft_assistant.prompts import build_draft_prompt
 
 
 SECTION_HEADINGS = {

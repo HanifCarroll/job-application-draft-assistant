@@ -14,12 +14,14 @@ from reportlab.lib.enums import TA_LEFT
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.units import inch
-from reportlab.platypus import HRFlowable, Paragraph, SimpleDocTemplate, Spacer
+from reportlab.platypus import HRFlowable, Indenter, Paragraph, SimpleDocTemplate, Spacer
 
-from upwork_proposal_assistant.models import PdfExportResponse, StoredDraft
+from job_application_draft_assistant.models import PdfExportResponse, StoredDraft
 
 
 STANDARD_SIGNOFF = "Best,\nHanif Carroll"
+PAGE_HORIZONTAL_MARGIN = 0.78 * inch
+LETTER_BODY_SIDE_INDENT = 1.02 * inch
 
 
 class PdfExportError(Exception):
@@ -105,8 +107,8 @@ def _render_pdf(stored: StoredDraft, header: ResumeHeader, pdf_path: Path) -> No
     doc = SimpleDocTemplate(
         str(pdf_path),
         pagesize=letter,
-        rightMargin=0.78 * inch,
-        leftMargin=0.78 * inch,
+        rightMargin=PAGE_HORIZONTAL_MARGIN,
+        leftMargin=PAGE_HORIZONTAL_MARGIN,
         topMargin=0.7 * inch,
         bottomMargin=0.7 * inch,
         title=f"Cover Letter - {opportunity.company or opportunity.title or stored.id}",
@@ -123,6 +125,7 @@ def _render_pdf(stored: StoredDraft, header: ResumeHeader, pdf_path: Path) -> No
         story.append(Paragraph(_contacts_markup(header.contacts), styles["contact"]))
     story.append(Spacer(1, 8))
     story.append(HRFlowable(width="100%", thickness=0.6, color=colors.HexColor("#6f7a74"), spaceAfter=16))
+    story.append(Indenter(left=LETTER_BODY_SIDE_INDENT, right=LETTER_BODY_SIDE_INDENT))
 
     date_text = _date_text(stored.created_at)
     if date_text:
@@ -194,7 +197,7 @@ def _pdf_path_for(stored: StoredDraft, output_dir: Path) -> Path:
     opportunity = stored.request.opportunity_snapshot()
     company = _filename_part(opportunity.company, "Company")
     title = _filename_part(opportunity.title, "Role")
-    name = f"Hanif-Carroll-Cover-Letter-{company}-{title}-{stored.id[:8]}.pdf"
+    name = f"Hanif-Carroll-Cover-Letter-{company}-{title}.pdf"
     return output_dir / name
 
 

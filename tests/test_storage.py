@@ -4,8 +4,8 @@ from pathlib import Path
 
 import pytest
 
-from upwork_proposal_assistant.models import DraftRequest, UpworkProject
-from upwork_proposal_assistant.storage import DraftStore, DraftStoreValidationError, make_stored_draft
+from job_application_draft_assistant.models import DraftRequest, UpworkProject
+from job_application_draft_assistant.storage import DraftStore, DraftStoreValidationError, make_stored_draft
 
 
 def test_store_round_trips_draft_response(tmp_path: Path) -> None:

@@ -5,11 +5,11 @@ from pathlib import Path
 import typer
 import uvicorn
 
-from upwork_proposal_assistant.config import DEFAULT_PORTFOLIO_ROOT, AppPaths
-from upwork_proposal_assistant.context.indexer import build_context
+from job_application_draft_assistant.config import DEFAULT_PORTFOLIO_ROOT, AppPaths
+from job_application_draft_assistant.context.indexer import build_context
 
 
-app = typer.Typer(help="Local Upwork proposal assistant.")
+app = typer.Typer(help="Local job application draft assistant.")
 
 
 @app.command()
@@ -26,7 +26,7 @@ def reindex(
 
 @app.command()
 def serve(host: str = "127.0.0.1", port: int = 8787) -> None:
-    uvicorn.run("upwork_proposal_assistant.api:create_app", factory=True, host=host, port=port)
+    uvicorn.run("job_application_draft_assistant.api:create_app", factory=True, host=host, port=port)
 
 
 if __name__ == "__main__":

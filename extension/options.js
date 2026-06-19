@@ -1,5 +1,5 @@
 const DEFAULT_API_BASE = "http://127.0.0.1:8787";
-const API_BASE_KEY = "upworkProposalBackendUrl";
+const API_BASE_KEY = "jobApplicationDraftBackendUrl";
 
 const els = {
   form: document.querySelector("#settings"),

@@ -7,9 +7,9 @@ from pypdf import PdfReader
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen.canvas import Canvas
 
-from upwork_proposal_assistant.models import DraftRequest, OpportunitySnapshot
-from upwork_proposal_assistant.pdf_export import PdfExportError, export_cover_letter_pdf, extract_resume_header, reveal_pdf
-from upwork_proposal_assistant.storage import make_stored_draft
+from job_application_draft_assistant.models import DraftRequest, OpportunitySnapshot
+from job_application_draft_assistant.pdf_export import PdfExportError, export_cover_letter_pdf, extract_resume_header, reveal_pdf
+from job_application_draft_assistant.storage import make_stored_draft
 
 
 def test_resume_header_uses_resume_contact_line_without_phone(tmp_path: Path) -> None:
@@ -77,7 +77,7 @@ def test_export_cover_letter_pdf_contains_letterhead_and_draft(tmp_path: Path) -
     exported = export_cover_letter_pdf(stored, output_dir, resume_path)
 
     assert Path(exported.pdf_path).is_file()
-    assert exported.filename.startswith("Hanif-Carroll-Cover-Letter-Acme-Systems-Software-Engineer-")
+    assert exported.filename == "Hanif-Carroll-Cover-Letter-Acme-Systems-Software-Engineer.pdf"
     text = _pdf_text(Path(exported.pdf_path))
     assert "Hanif Carroll" in text
     assert "hanif@example.com" in text
@@ -92,6 +92,36 @@ def test_export_cover_letter_pdf_contains_letterhead_and_draft(tmp_path: Path) -
         "https://linkedin.com/in/hanifcarroll",
         "https://hanifcarroll.com",
     }
+
+
+def test_export_cover_letter_pdf_overwrites_same_company_role_filename(tmp_path: Path) -> None:
+    resume_path = tmp_path / "resume.pdf"
+    output_dir = tmp_path / "letters"
+    _write_resume_pdf(
+        resume_path,
+        [
+            "Hanif Carroll",
+            "Product Engineer",
+            "hanif@example.com | hanifcarroll.com",
+        ],
+    )
+    first = make_stored_draft(
+        DraftRequest(opportunity=OpportunitySnapshot(title="Software Engineer", company="Acme Systems")),
+        _draft_payload("First draft body."),
+    )
+    second = make_stored_draft(
+        DraftRequest(opportunity=OpportunitySnapshot(title="Software Engineer", company="Acme Systems")),
+        _draft_payload("Second draft body."),
+    )
+
+    first_export = export_cover_letter_pdf(first, output_dir, resume_path)
+    second_export = export_cover_letter_pdf(second, output_dir, resume_path)
+
+    assert first_export.pdf_path == second_export.pdf_path
+    assert first_export.filename == "Hanif-Carroll-Cover-Letter-Acme-Systems-Software-Engineer.pdf"
+    text = _pdf_text(Path(second_export.pdf_path))
+    assert "Second draft body." in text
+    assert "First draft body." not in text
 
 
 def test_export_cover_letter_pdf_rejects_upwork_proposal(tmp_path: Path) -> None:
@@ -138,6 +168,27 @@ def _write_resume_pdf(path: Path, lines: list[str]) -> None:
         canvas.drawString(72, y, line)
         y -= 16
     canvas.save()
+
+
+def _draft_payload(text: str) -> dict[str, object]:
+    return {
+        "draft_text": text,
+        "draft_type": "cover_letter",
+        "subject_line": "",
+        "selected_angle": {
+            "key": "saas",
+            "label": "SaaS",
+            "promise": "Build reliable software",
+            "caused_by": ["offer.saas"],
+        },
+        "role_classification": "software engineering",
+        "application_strategy": "Connect product engineering experience to the role.",
+        "selected_projects": [],
+        "rejected_projects": [],
+        "decisions": [],
+        "claims": [],
+        "warnings": [],
+    }
 
 
 def _pdf_text(path: Path) -> str:

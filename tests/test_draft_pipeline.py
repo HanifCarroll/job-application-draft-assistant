@@ -4,10 +4,10 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import cast
 
-from upwork_proposal_assistant.codex_provider import CodexProvider
-from upwork_proposal_assistant.config import AppPaths
-from upwork_proposal_assistant.draft_pipeline import run_draft_pipeline
-from upwork_proposal_assistant.models import (
+from job_application_draft_assistant.codex_provider import CodexProvider
+from job_application_draft_assistant.config import AppPaths
+from job_application_draft_assistant.draft_pipeline import run_draft_pipeline
+from job_application_draft_assistant.models import (
     CodexRunTiming,
     ContextBundle,
     ContextProject,
@@ -15,7 +15,7 @@ from upwork_proposal_assistant.models import (
     OfferAngle,
     OpportunitySnapshot,
 )
-from upwork_proposal_assistant.storage import DraftStore
+from job_application_draft_assistant.storage import DraftStore
 
 
 class FakeCodex:

@@ -4,10 +4,10 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
 import logging
 
-from upwork_proposal_assistant.codex_provider import CodexProvider
-from upwork_proposal_assistant.draft_pipeline import run_draft_pipeline
-from upwork_proposal_assistant.job_store import DraftJobRecord, DraftJobStore
-from upwork_proposal_assistant.models import (
+from job_application_draft_assistant.codex_provider import CodexProvider
+from job_application_draft_assistant.draft_pipeline import run_draft_pipeline
+from job_application_draft_assistant.job_store import DraftJobRecord, DraftJobStore
+from job_application_draft_assistant.models import (
     CodexRunTiming,
     ContextBundle,
     DraftJobCreated,
@@ -16,7 +16,7 @@ from upwork_proposal_assistant.models import (
     DraftRequest,
     StageTiming,
 )
-from upwork_proposal_assistant.storage import DraftStore
+from job_application_draft_assistant.storage import DraftStore
 
 
 logger = logging.getLogger(__name__)
@@ -35,7 +35,7 @@ class DraftJobRunner:
         self.codex = codex
         self.draft_store = draft_store
         self.job_store = job_store
-        self._executor = ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix="upwork-draft")
+        self._executor = ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix="job-application-draft")
 
     def enqueue(self, request: DraftRequest) -> DraftJobCreated:
         job = self.job_store.create(request)

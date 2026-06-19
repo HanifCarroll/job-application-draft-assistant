@@ -696,7 +696,7 @@ wheels = [
 ]
 
 [[package]]
-name = "upwork-proposal-assistant"
+name = "job-application-draft-assistant"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [

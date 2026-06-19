@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 
-from upwork_proposal_assistant.models import ContextBundle, DraftRequest
+from job_application_draft_assistant.models import ContextBundle, DraftRequest
 
 
 def build_draft_prompt(request: DraftRequest, context: ContextBundle) -> str:

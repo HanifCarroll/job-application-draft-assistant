@@ -1,6 +1,6 @@
 const DEFAULT_API_BASE = "http://127.0.0.1:8787";
-const API_BASE_KEY = "upworkProposalBackendUrl";
-const DRAFT_STATE_KEY = "upworkProposalDraftState";
+const API_BASE_KEY = "jobApplicationDraftBackendUrl";
+const DRAFT_STATE_KEY = "jobApplicationDraftState";
 
 function nowIso() {
   return new Date().toISOString();

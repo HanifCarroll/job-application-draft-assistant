@@ -4,13 +4,13 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 
-from upwork_proposal_assistant.codex_provider import CodexProvider, CodexProviderError
-from upwork_proposal_assistant.config import AppPaths
-from upwork_proposal_assistant.context.indexer import build_context, ensure_context
-from upwork_proposal_assistant.draft_pipeline import run_draft_pipeline
-from upwork_proposal_assistant.job_store import DraftJobStore
-from upwork_proposal_assistant.jobs import DraftJobRunner, build_job_status
-from upwork_proposal_assistant.models import (
+from job_application_draft_assistant.codex_provider import CodexProvider, CodexProviderError
+from job_application_draft_assistant.config import AppPaths
+from job_application_draft_assistant.context.indexer import build_context, ensure_context
+from job_application_draft_assistant.draft_pipeline import run_draft_pipeline
+from job_application_draft_assistant.job_store import DraftJobStore
+from job_application_draft_assistant.jobs import DraftJobRunner, build_job_status
+from job_application_draft_assistant.models import (
     DraftJobCreated,
     DraftJobStatus,
     DraftRequest,
@@ -19,8 +19,8 @@ from upwork_proposal_assistant.models import (
     ReindexResponse,
     RevealPdfResponse,
 )
-from upwork_proposal_assistant.pdf_export import PdfExportError, export_cover_letter_pdf, reveal_pdf
-from upwork_proposal_assistant.storage import DraftStore, DraftStoreValidationError
+from job_application_draft_assistant.pdf_export import PdfExportError, export_cover_letter_pdf, reveal_pdf
+from job_application_draft_assistant.storage import DraftStore, DraftStoreValidationError
 
 
 def create_app() -> FastAPI:
@@ -41,7 +41,7 @@ def create_app() -> FastAPI:
         max_workers=paths.max_workers,
     )
 
-    app = FastAPI(title="Application Draft Assistant", version="0.1.0")
+    app = FastAPI(title="Job Application Draft Assistant", version="0.1.0")
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["*"],

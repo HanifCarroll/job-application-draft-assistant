@@ -2,10 +2,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from upwork_proposal_assistant.job_store import DraftJobStore
-from upwork_proposal_assistant.jobs import build_job_status
-from upwork_proposal_assistant.models import CodexRunTiming, DraftRequest, StageTiming, UpworkProject
-from upwork_proposal_assistant.storage import DraftStore, make_stored_draft
+from job_application_draft_assistant.job_store import DraftJobStore
+from job_application_draft_assistant.jobs import build_job_status
+from job_application_draft_assistant.models import CodexRunTiming, DraftRequest, StageTiming, UpworkProject
+from job_application_draft_assistant.storage import DraftStore, make_stored_draft
 
 
 def test_job_store_tracks_completion_and_draft_audit(tmp_path: Path) -> None:
