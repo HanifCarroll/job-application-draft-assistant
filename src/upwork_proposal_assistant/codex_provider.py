@@ -27,6 +27,7 @@ class CodexProvider:
         prompt: str,
         phase: str = "unknown",
         on_timing: Callable[[CodexRunTiming], None] | None = None,
+        schema_path: Path | None = None,
     ) -> dict[str, object]:
         self.paths.ensure_runtime()
         run_dir = self._prepare_run_workspace()
@@ -52,7 +53,7 @@ class CodexProvider:
             "-C",
             str(run_dir),
             "--output-schema",
-            str(self.paths.draft_schema_path),
+            str(schema_path or self.paths.draft_schema_path),
             "--output-last-message",
             str(output_path),
         ]

@@ -2,7 +2,50 @@ from __future__ import annotations
 
 import json
 
-from upwork_proposal_assistant.models import ContextSelection, DraftRequest
+from upwork_proposal_assistant.models import ContextBundle, ContextSelection, DraftRequest
+
+
+def build_selection_prompt(request: DraftRequest, context: ContextBundle) -> str:
+    opportunity = request.opportunity_snapshot()
+    packet = {
+        "profile": context.profile,
+        "opportunity": opportunity.model_dump(),
+        "draft_type": request.draft_type,
+        "user_notes": request.user_notes,
+        "style": request.style or request.proposal_style,
+        "available_offers": [offer.model_dump() for offer in context.offers],
+        "available_projects": [project.model_dump() for project in context.projects],
+    }
+    return f"""You select job-application strategy from a complete context packet.
+
+You are the selection layer. Do not draft the application yet.
+
+Use the whole supplied context. Do not rely on keyword counts or string matches. Reason about the actual role, buyer, seniority, work shape, and available proof.
+
+Source rules:
+- Use only supplied context. Do not invent experience, metrics, tools, client names, timelines, or outcomes.
+- Treat `opportunity.raw_text` as noisy supporting material. Prefer structured opportunity fields for role classification, and ignore obvious navigation, ads, footer text, and similar-job snippets.
+- `profile` is source ref `profile`.
+- Opportunity fields are source refs like `opportunity.description`, `opportunity.skills`, and `opportunity.raw_text`.
+- Offer refs use each offer's `source_ref`.
+- Project refs use each project's `source_refs` keys, plus `project.<slug>.claim` and `project.<slug>.technologies`.
+
+Selection rules:
+- Return JSON matching the provided schema.
+- Classify the role in `role_classification` in concrete terms, such as "frontend staff augmentation", "founder MVP build", or "AI workflow automation".
+- Choose the strongest application angle for this job. You may reuse an available offer, narrow it, or create a custom angle when the offers do not fit.
+- Set `selected_angle.key` to an available offer key when reusing one; otherwise set a short custom key such as "frontend_staff_augmentation".
+- Choose 0-3 project slugs from `available_projects`; prefer 1-2. Use no project if none is genuinely relevant.
+- Include rejected projects when they are plausible by surface keywords but strategically weak.
+- Put only application-safe factual claims in `allowed_claims[]`. Each claim must have source refs in `caused_by`.
+- Add warnings for weak evidence, noisy extraction, missing job details, or a role that should not use a project proof point.
+- Every important selection choice must appear in `decisions[]` with `caused_by` refs.
+
+Context packet:
+```json
+{json.dumps(packet, indent=2)}
+```
+"""
 
 
 def build_draft_prompt(request: DraftRequest, selection: ContextSelection, profile: str) -> str:
@@ -17,6 +60,11 @@ def build_draft_prompt(request: DraftRequest, selection: ContextSelection, profi
         "selected_projects": [project.model_dump() for project in selection.projects],
         "source_evidence": [evidence.model_dump() for evidence in selection.source_evidence],
         "selection_decisions": [decision.model_dump() for decision in selection.selection_decisions],
+        "role_classification": selection.role_classification,
+        "application_strategy": selection.application_strategy,
+        "allowed_claims": [claim.model_dump() for claim in selection.allowed_claims],
+        "rejected_projects": [project.model_dump() for project in selection.rejected_projects],
+        "selection_warnings": selection.warnings,
     }
     return f"""You write job application drafts from a verified context packet.
 
@@ -33,11 +81,14 @@ Rules:
 - For `question_answers`, answer each supplied application question in `question_answers[]` and put a short intro in `primary_text`.
 - Open on the employer's role/problem, not a biography.
 - Mention 1-2 relevant proof points only if they are supported by source_evidence.
+- Treat `allowed_claims[]` as the preferred claim whitelist. Omit claims that do not help this application.
+- Follow `application_strategy`; it was selected from the complete portfolio context before drafting.
+- Do not resurrect rejected projects or angles.
 - Include one concrete first step or working approach.
 - Avoid "Dear hiring manager", "I am excited to apply", generic flattery, desperate sales language, and unsupported claims.
 - Every application claim must appear in `claims[]` with `caused_by` refs from source_evidence.
 - Every meaningful drafting decision must appear in `decisions[]` with `caused_by` refs from source_evidence.
-- Preserve the provided selection decisions by including equivalent decision entries or stricter refinements.
+- Preserve the model selection decisions by including equivalent decision entries or stricter refinements.
 
 Context packet:
 ```json

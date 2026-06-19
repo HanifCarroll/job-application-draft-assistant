@@ -12,13 +12,14 @@ from upwork_proposal_assistant.models import (
     CodexRunTiming,
     ContextBundle,
     ContextSelection,
+    ContextSelectionPlan,
     DraftJobStage,
     DraftRequest,
     StageTiming,
     StoredDraft,
 )
-from upwork_proposal_assistant.prompts import build_draft_prompt, build_humanizer_prompt
-from upwork_proposal_assistant.selector import select_context
+from upwork_proposal_assistant.prompts import build_draft_prompt, build_humanizer_prompt, build_selection_prompt
+from upwork_proposal_assistant.selector import selection_from_plan
 from upwork_proposal_assistant.storage import DraftStore, make_stored_draft
 
 
@@ -43,7 +44,14 @@ def run_draft_pipeline(
     on_codex_timing: CodexTimingCallback | None = None,
 ) -> DraftPipelineResult:
     with _timed_stage("selecting_context", None, on_stage, on_stage_timing):
-        selection = select_context(context, request)
+        selection_raw = codex.generate(
+            build_selection_prompt(request, context),
+            phase="context_selection",
+            on_timing=on_codex_timing,
+            schema_path=codex.paths.selection_schema_path,
+        )
+        selection_plan = ContextSelectionPlan.model_validate(selection_raw)
+        selection = selection_from_plan(context, request, selection_plan)
 
     with _timed_stage("codex_draft", selection, on_stage, on_stage_timing):
         first_pass = codex.generate(

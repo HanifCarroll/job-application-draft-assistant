@@ -154,11 +154,40 @@ class ClaimTrace(BaseModel):
     caused_by: list[str]
 
 
+class SelectedAngle(BaseModel):
+    key: str
+    label: str
+    promise: str
+    caused_by: list[str] = Field(default_factory=list)
+
+
+class RejectedProject(BaseModel):
+    slug: str
+    reason: str
+    caused_by: list[str] = Field(default_factory=list)
+
+
+class ContextSelectionPlan(BaseModel):
+    role_classification: str
+    selected_angle: SelectedAngle
+    selected_project_slugs: list[str] = Field(default_factory=list)
+    rejected_projects: list[RejectedProject] = Field(default_factory=list)
+    application_strategy: str
+    allowed_claims: list[ClaimTrace] = Field(default_factory=list)
+    decisions: list[AuditDecision] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+
+
 class ContextSelection(BaseModel):
     angle: OfferAngle
     projects: list[ContextProject]
     source_evidence: list[SourceEvidence]
     selection_decisions: list[AuditDecision]
+    role_classification: str = ""
+    application_strategy: str = ""
+    allowed_claims: list[ClaimTrace] = Field(default_factory=list)
+    rejected_projects: list[RejectedProject] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
 
 
 class QuestionAnswer(BaseModel):
