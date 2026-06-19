@@ -137,6 +137,14 @@
     ]);
   }
 
+  async function waitForDiceVisibleSkillChips(timeoutMs = 2500) {
+    const startedAt = Date.now();
+    while (Date.now() - startedAt < timeoutMs) {
+      if (diceVisibleSkillChips().length > 0) return;
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+  }
+
   function diceVisibleSkillChips(root = document) {
     const jobDetailsHeading = Array.from(root.querySelectorAll('h2')).find((node) => clean(node.textContent) === "Job Details");
     const jobDetailsSection = jobDetailsHeading?.parentElement;
@@ -144,7 +152,7 @@
     const skillsHeading = Array.from(jobDetailsSection.querySelectorAll('h3')).find((node) => clean(node.textContent) === "Skills");
     const skillsList = skillsHeading?.nextElementSibling;
     if (skillsList?.tagName !== "UL") return [];
-    return unique(Array.from(skillsList.querySelectorAll("li")).map((node) => clean(node.textContent || "")));
+    return unique(Array.from(skillsList.children).map((node) => clean(node.textContent || "")));
   }
 
   function opportunity(source, values) {
@@ -223,7 +231,12 @@
       const job = jobPostingJsonLd();
       const description = htmlToText(job?.description);
       const company = orgName(job?.hiringOrganization) || firstText(['[data-testid="job-detail-header-card"] a']);
-      const extractionWarnings = description ? [] : ["Dice job description was not found; review the snapshot before drafting."];
+      await waitForDiceVisibleSkillChips();
+      const skills = diceJobSkills(job);
+      const extractionWarnings = [
+        ...(description ? [] : ["Dice job description was not found; review the snapshot before drafting."]),
+        ...(skills.length ? [] : ["Dice skills list was not found; review the snapshot before drafting."]),
+      ];
       return opportunity("dice", {
         title: clean(job?.title),
         company,
@@ -231,7 +244,7 @@
         employment_type: employmentTypeFromJsonLd(job),
         remote_status: remoteStatusFromJsonLd(job),
         description,
-        skills: diceJobSkills(job),
+        skills,
         company_context: diceCompanyContext(company),
         extraction_warnings: extractionWarnings,
       });

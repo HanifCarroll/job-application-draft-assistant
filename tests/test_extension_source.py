@@ -62,9 +62,12 @@ def test_dice_extraction_does_not_send_page_wide_text() -> None:
     assert "job?.description" in dice_block
     assert "title: clean(job?.title)" in dice_block
     assert "...diceVisibleSkillChips()" in content_script
+    assert "waitForDiceVisibleSkillChips" in content_script
     assert 'clean(node.textContent) === "Job Details"' in content_script
     assert 'clean(node.textContent) === "Skills"' in content_script
     assert 'skillsList?.tagName !== "UL"' in content_script
+    assert "Array.from(skillsList.children)" in content_script
+    assert "Dice skills list was not found" in dice_block
     assert "company_context: diceCompanyContext(company)" in dice_block
     assert '"Company Info"' in content_script
     assert "`About ${company}`" in content_script
