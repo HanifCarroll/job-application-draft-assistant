@@ -4,6 +4,7 @@ from collections.abc import Callable
 import json
 import os
 from pathlib import Path
+import re
 import subprocess
 from time import perf_counter
 from uuid import uuid4
@@ -76,7 +77,7 @@ class CodexProvider:
             stdout_bytes = _byte_len(result.stdout)
             stderr_bytes = _byte_len(result.stderr)
             if result.returncode != 0:
-                raise CodexProviderError(result.stderr.strip() or result.stdout.strip() or "codex exec failed")
+                raise CodexProviderError(_safe_process_error(result.stdout, result.stderr, result.returncode))
             if not output_path.exists():
                 raise CodexProviderError("codex exec did not write an output message")
             raw = output_path.read_text(encoding="utf-8")
@@ -130,6 +131,27 @@ def _parse_json_message(raw: str) -> dict[str, object]:
     if not isinstance(value, dict):
         raise CodexProviderError("codex output JSON was not an object")
     return value
+
+
+def _safe_process_error(stdout: str, stderr: str, return_code: int) -> str:
+    text = "\n".join([stderr, stdout])
+    message_match = re.search(r'"message"\s*:\s*("(?:(?:\\.)|[^"\\])*")', text)
+    if message_match is not None:
+        try:
+            message = json.loads(message_match.group(1))
+            if isinstance(message, str) and message:
+                return f"codex exec failed with exit code {return_code}: {message}"
+        except json.JSONDecodeError:
+            pass
+    code_match = re.search(r'"code"\s*:\s*("(?:(?:\\.)|[^"\\])*")', text)
+    if code_match is not None:
+        try:
+            code = json.loads(code_match.group(1))
+            if isinstance(code, str) and code:
+                return f"codex exec failed with exit code {return_code}: {code}"
+        except json.JSONDecodeError:
+            pass
+    return f"codex exec failed with exit code {return_code}. See timing metadata for output sizes."
 
 
 def _byte_len(value: str | bytes | None) -> int:
