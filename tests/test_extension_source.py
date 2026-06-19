@@ -198,6 +198,10 @@ def test_extension_wires_application_logging() -> None:
     assert "Open PDF" in dice_wizard_assistant_js
     assert "Show in Finder" in dice_wizard_assistant_js
     assert "Generate PDF" in dice_wizard_assistant_js
+    assert "pollForResumeStep" in dice_wizard_assistant_js
+    assert "autoStartedForJobId" in dice_wizard_assistant_js
+    assert "MutationObserver" not in dice_wizard_assistant_js
+    assert "coverLetterFileInput" not in dice_wizard_assistant_js
     assert "DOWNLOAD_PDF" not in dice_wizard_assistant_js
     assert "input.files = transfer.files" not in dice_wizard_assistant_js
     assert "DataTransfer" not in dice_wizard_assistant_js

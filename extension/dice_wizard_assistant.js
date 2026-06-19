@@ -21,7 +21,11 @@
 
   function isResumeCoverLetterStep() {
     if (!isDiceWizard()) return false;
-    return Boolean(coverLetterFileInput()) || Boolean(document.querySelector('[data-testid="cover-letter"]'));
+    return Boolean(
+      document.querySelector('[data-testid="cover-letter"]') ||
+        document.querySelector('input[type="file"][accept*="pdf"]') ||
+        document.querySelector('input[type="file"]')
+    );
   }
 
   function ensurePanel() {
@@ -104,20 +108,34 @@
     return panel;
   }
 
+  let panelStatus = "";
+  let panelBusy = false;
+  let panelLabel = "";
+
   function setPanelStatus(message, { busy = false, label = "" } = {}) {
+    const resolvedLabel = label || (busy ? "Working..." : "Generate PDF");
+    if (message === panelStatus && busy === panelBusy && resolvedLabel === panelLabel) {
+      return;
+    }
+    panelStatus = message;
+    panelBusy = busy;
+    panelLabel = resolvedLabel;
     const panel = ensurePanel();
     const status = panel.querySelector('[data-role="status"]');
     const primary = panel.querySelector('[data-role="primary"]');
     if (status) status.textContent = message;
     if (primary instanceof HTMLButtonElement) {
       primary.disabled = busy;
-      primary.textContent = label || (busy ? "Working..." : "Generate PDF");
+      primary.textContent = resolvedLabel;
     }
   }
 
   let activeRun = null;
   let currentPdf = null;
   let currentDraftId = "";
+  let autoStartedForJobId = "";
+  let stepPollTimer = 0;
+  let stepPollCount = 0;
 
   function startCoverLetterFlow(options = {}) {
     if (activeRun) return;
@@ -228,22 +246,6 @@
     const response = await chrome.runtime.sendMessage({ type: "REVEAL_PDF", draft_id: currentDraftId || currentPdf.draft_id });
     if (!response?.ok || !response.opened) throw new Error(response?.error || "Could not open the generated PDF in Finder.");
     setPanelStatus(`Finder opened. Select ${currentPdf?.filename || "the generated PDF"} in Dice's upload box.`, { label: "Regenerate PDF" });
-  }
-
-  function coverLetterFileInput() {
-    const inputs = Array.from(document.querySelectorAll('input[type="file"]'));
-    if (!inputs.length) return null;
-    return (
-      inputs.find((input) => {
-        let element = input.parentElement;
-        for (let depth = 0; depth < 6 && element; depth += 1) {
-          const text = clean(element.textContent || "");
-          if (text.includes("Cover letter") || text.includes("Upload your cover letter")) return true;
-          element = element.parentElement;
-        }
-        return false;
-      }) || inputs[inputs.length - 1]
-    );
   }
 
   async function diceDetailOpportunity(jobId) {
@@ -371,12 +373,20 @@
       setPanelStatus("Waiting for the Resume & Cover Letter step.");
       return;
     }
+    const jobId = jobApplicationId();
+    if (autoStartedForJobId === jobId) return;
+    autoStartedForJobId = jobId;
     startCoverLetterFlow();
   }
 
-  const observer = new MutationObserver(() => {
+  function pollForResumeStep() {
+    stepPollCount += 1;
     maybeStart();
-  });
-  observer.observe(document.documentElement, { childList: true, subtree: true });
-  window.setTimeout(maybeStart, 600);
+    if (!isDiceWizard() || autoStartedForJobId === jobApplicationId() || stepPollCount >= 120) {
+      window.clearInterval(stepPollTimer);
+    }
+  }
+
+  stepPollTimer = window.setInterval(pollForResumeStep, 1000);
+  window.setTimeout(pollForResumeStep, 600);
 })();
