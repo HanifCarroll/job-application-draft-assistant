@@ -114,6 +114,41 @@ function setBusy(isBusy) {
   els.extract.disabled = isBusy;
 }
 
+function normalizeUrl(value) {
+  if (!value) return "";
+  try {
+    const url = new URL(value);
+    url.hash = "";
+    return url.toString().replace(/\/$/, "");
+  } catch (_error) {
+    return String(value).trim().replace(/#.*$/, "").replace(/\/$/, "");
+  }
+}
+
+function samePageUrl(left, right) {
+  const normalizedLeft = normalizeUrl(left);
+  const normalizedRight = normalizeUrl(right);
+  return Boolean(normalizedLeft && normalizedRight && normalizedLeft === normalizedRight);
+}
+
+function requestSourceUrl(request) {
+  return request?.opportunity?.source_url || request?.project?.url || "";
+}
+
+function stateSourceUrl(state) {
+  return requestSourceUrl(state?.request);
+}
+
+function opportunitySourceUrl(opportunity) {
+  return opportunity?.source_url || opportunity?.url || "";
+}
+
+function clearDraftOutput() {
+  els.proposal.value = "";
+  els.audit.textContent = "";
+  els.copy.disabled = true;
+}
+
 async function activeTab() {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (!tab?.id) throw new Error("No active tab found.");
@@ -134,6 +169,17 @@ async function sendExtractMessage(tabId) {
   const response = await chrome.tabs.sendMessage(tabId, { type: "APPLICATION_DRAFT_EXTRACT" });
   if (!response?.ok) throw new Error("Could not extract job details.");
   return response.opportunity || response.project;
+}
+
+async function captureActivePage({ statusText = "Review the current page snapshot before drafting." } = {}) {
+  const opportunity = await extractProject();
+  currentState = null;
+  clearProgress();
+  clearDraftOutput();
+  fillOpportunity(opportunity);
+  await persistEditableSnapshot();
+  setStatus(statusText);
+  return opportunity;
 }
 
 function fillOpportunity(opportunity) {
@@ -205,6 +251,24 @@ function readRequest() {
   };
 }
 
+async function currentPageRequest() {
+  const existingRequest = readRequest();
+  const opportunity = await extractProject();
+  const activeUrl = opportunitySourceUrl(opportunity);
+  const existingUrl = requestSourceUrl(existingRequest);
+  const activeSource = opportunity.source || "";
+  const existingSource = existingRequest.opportunity?.source || "";
+
+  if (!samePageUrl(existingUrl, activeUrl) || (activeSource && existingSource !== activeSource)) {
+    fillOpportunity(opportunity);
+    await persistEditableSnapshot();
+    setStatus("Updated snapshot from the active page.");
+    return readRequest();
+  }
+
+  return existingRequest;
+}
+
 function buildAuditPayload(job, draft) {
   return {
     job_id: job.id,
@@ -246,8 +310,8 @@ function scheduleEditableSnapshot() {
   }, 250);
 }
 
-async function createDraftJob() {
-  const response = await chrome.runtime.sendMessage({ type: "START_DRAFT_JOB", request: readRequest() });
+async function createDraftJob(request = readRequest()) {
+  const response = await chrome.runtime.sendMessage({ type: "START_DRAFT_JOB", request });
   if (!response?.ok) throw new Error(response?.error || "Could not start draft job.");
   return response.state;
 }
@@ -319,8 +383,8 @@ async function finishDraftJob(jobId) {
   clearProgress();
 }
 
-async function restoreDraftState() {
-  const state = await loadDraftState();
+async function restoreDraftState(stateToRestore = null) {
+  const state = stateToRestore || (await loadDraftState());
   if (!state) return false;
 
   currentState = state;
@@ -375,42 +439,39 @@ async function restoreDraftState() {
 els.extract.addEventListener("click", async () => {
   try {
     pollToken += 1;
-    currentState = null;
     setBusy(false);
-    clearProgress();
     setStatus("Extracting job details...");
-    els.proposal.value = "";
-    els.audit.textContent = "";
-    els.copy.disabled = true;
-    fillOpportunity(await extractProject());
-    await persistEditableSnapshot();
-    setStatus("Review the snapshot before drafting.");
+    await captureActivePage({ statusText: "Review the current page snapshot before drafting." });
   } catch (error) {
     setStatus(error.message, "error");
   }
 });
 
 els.draft.addEventListener("click", async () => {
+  let wroteStartingState = false;
   try {
     setBusy(true);
-    els.copy.disabled = true;
-    els.proposal.value = "";
-    els.audit.textContent = "";
+    setStatus("Checking active page...");
+    const request = await currentPageRequest();
+    clearDraftOutput();
     await writeDraftState({
       phase: "starting",
-      request: readRequest(),
+      request,
       proposal: "",
       audit: "",
       started_at: nowIso(),
       error: null,
     });
+    wroteStartingState = true;
     setProgress({ stage: "queued", elapsed_seconds: 0 });
-    const state = await createDraftJob();
+    const state = await createDraftJob(request);
     currentState = state;
     setProgress({ ...(state.job || {}), stage: state.job?.stage || "queued", elapsed_seconds: 0 });
     await finishDraftJob(state.job_id);
   } catch (error) {
-    await patchDraftState({ phase: "failed", error: error.message }).catch(() => {});
+    if (wroteStartingState) {
+      await patchDraftState({ phase: "failed", error: error.message }).catch(() => {});
+    }
     setStatus(error.message, "error");
   } finally {
     setBusy(false);
@@ -431,14 +492,29 @@ els.settings.addEventListener("click", () => {
   element.addEventListener("change", scheduleEditableSnapshot);
 });
 
-restoreDraftState()
-  .then((restored) => {
-    if (restored) return null;
-    return extractProject().then(async (project) => {
-      fillOpportunity(project);
-      await persistEditableSnapshot();
-      setStatus("Review the snapshot before drafting.");
-      return null;
-    });
-  })
-  .catch((error) => setStatus(error.message || "Open a supported job page, then click Extract.", "error"));
+async function initializePopup() {
+  try {
+    setStatus("Reading active page...");
+    const opportunity = await extractProject();
+    const state = await loadDraftState();
+    if (state && samePageUrl(stateSourceUrl(state), opportunitySourceUrl(opportunity))) {
+      await restoreDraftState(state);
+      return;
+    }
+    currentState = null;
+    clearProgress();
+    clearDraftOutput();
+    fillOpportunity(opportunity);
+    await persistEditableSnapshot();
+    setStatus("Review the current page snapshot before drafting.");
+  } catch (error) {
+    const restored = await restoreDraftState();
+    if (restored) {
+      setStatus(`Showing saved snapshot. ${error.message || "Active page could not be read."}`, "error");
+      return;
+    }
+    setStatus(error.message || "Open a supported job page, then click Extract.", "error");
+  }
+}
+
+initializePopup();
