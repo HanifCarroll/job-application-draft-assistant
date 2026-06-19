@@ -73,7 +73,7 @@
 
   async function currentOpportunity(rule) {
     if (rule.captureOpportunity) {
-      const captured = rule.captureOpportunity();
+      const captured = await rule.captureOpportunity();
       if (captured) return captured;
     }
     if (typeof globalThis.__applicationDraftAssistantExtract !== "function") return null;
@@ -84,7 +84,7 @@
   }
 
   function elementConfirms(rule) {
-    return rule.confirmationSelectors.some((item) => {
+    return (rule.confirmationSelectors || []).some((item) => {
       const element = document.querySelector(item.selector);
       return clean(element?.textContent || "") === item.text;
     });
@@ -92,7 +92,7 @@
 
   function pathConfirms(rule) {
     const path = location.pathname;
-    return rule.confirmationPathPatterns.some((pattern) => pattern.test(path));
+    return (rule.confirmationPathPatterns || []).some((pattern) => pattern.test(path));
   }
 
   function buttonText(element) {
@@ -106,16 +106,20 @@
     return buttonText(submit) === rule.submitText;
   }
 
-  function diceWizardOpportunity() {
-    const wizardMatch = location.pathname.match(/^\/job-applications\/([^/]+)\/wizard/);
+  async function diceWizardOpportunity() {
+    const wizardMatch = location.pathname.match(/^\/job-applications\/([^/]+)\/wizard(?:\/success)?\/?$/);
     if (!wizardMatch) return null;
-    const detailLink = document.querySelector(`a[href="/job-detail/${wizardMatch[1]}"], a[href^="/job-detail/${wizardMatch[1]}?"]`);
+    return (await diceDetailOpportunity(wizardMatch[1])) || diceWizardPageOpportunity(wizardMatch[1]);
+  }
+
+  function diceWizardPageOpportunity(jobId) {
+    const detailLink = document.querySelector(`a[href="/job-detail/${jobId}"], a[href^="/job-detail/${jobId}?"]`);
+    const sourceUrl = new URL(detailLink?.getAttribute("href") || `/job-detail/${jobId}`, location.origin).href;
     if (!detailLink) return null;
     const title = clean(detailLink.textContent || "");
     if (!title) return null;
     const headerText = diceWizardHeaderText(detailLink);
     const detailMatch = headerText.match(/^(.+?)\s*@\s*(.+?)\s+in\s+(.+)$/);
-    const sourceUrl = new URL(detailLink.getAttribute("href") || `/job-detail/${wizardMatch[1]}`, location.origin).href;
     return {
       source: "dice",
       source_url: sourceUrl,
@@ -134,6 +138,124 @@
       recruiter_or_client_context: "",
       extraction_warnings: detailMatch ? [] : ["Dice application wizard header did not expose company and location."],
     };
+  }
+
+  async function diceDetailOpportunity(jobId) {
+    const sourceUrl = new URL(`/job-detail/${jobId}`, location.origin).href;
+    try {
+      const response = await fetch(sourceUrl, { credentials: "include" });
+      if (!response.ok) return null;
+      const documentText = await response.text();
+      const parsed = new DOMParser().parseFromString(documentText, "text/html");
+      const job = jobPostingJsonLd(parsed);
+      if (!job?.title) return null;
+      const company = orgName(job.hiringOrganization);
+      return {
+        source: "dice",
+        source_url: clean(job.url) || sourceUrl,
+        captured_at: new Date().toISOString(),
+        title: clean(job.title),
+        company,
+        location: diceLocationFromJsonLd(job),
+        employment_type: diceEmploymentTypeFromJsonLd(job),
+        description: htmlToText(job.description),
+        responsibilities: [],
+        requirements: [],
+        nice_to_haves: [],
+        skills: unique([
+          ...jsonLdStringList(job.skills),
+          ...jsonLdStringList(job.occupationalCategory),
+        ]),
+        application_questions: [],
+        company_context: "",
+        recruiter_or_client_context: "",
+        extraction_warnings: company ? [] : ["Dice structured job details did not include company."],
+      };
+    } catch (_error) {
+      return null;
+    }
+  }
+
+  function jobPostingJsonLd(root) {
+    return jsonLdObjects(root).find((item) => {
+      const type = item["@type"];
+      return type === "JobPosting" || (Array.isArray(type) && type.includes("JobPosting"));
+    });
+  }
+
+  function jsonLdObjects(root) {
+    const values = [];
+    for (const script of root.querySelectorAll('script[type="application/ld+json"]')) {
+      try {
+        const parsed = JSON.parse(script.textContent || "null");
+        values.push(...flattenJsonLd(parsed));
+      } catch (_error) {
+        // Ignore malformed structured data from third-party pages.
+      }
+    }
+    return values;
+  }
+
+  function flattenJsonLd(value) {
+    if (!value) return [];
+    if (Array.isArray(value)) return value.flatMap(flattenJsonLd);
+    if (typeof value !== "object") return [];
+    const graph = Array.isArray(value["@graph"]) ? value["@graph"].flatMap(flattenJsonLd) : [];
+    return [value, ...graph];
+  }
+
+  function jsonLdStringList(value) {
+    if (!value) return [];
+    if (Array.isArray(value)) return value.flatMap(jsonLdStringList);
+    if (typeof value === "object") return [value.name, value.value, value.termCode].flatMap(jsonLdStringList);
+    return clean(String(value)).split(/[,;|]/).map(clean).filter(Boolean);
+  }
+
+  function orgName(value) {
+    if (!value) return "";
+    if (Array.isArray(value)) return orgName(value[0]);
+    if (typeof value === "object") return clean(value.name || "");
+    return clean(String(value));
+  }
+
+  function diceLocationFromJsonLd(job) {
+    const requirements = job?.applicantLocationRequirements;
+    const jobLocation = Array.isArray(job?.jobLocation) ? job.jobLocation[0] : job?.jobLocation;
+    const address = jobLocation?.address;
+    return clean(
+      [
+        job?.jobLocationType === "TELECOMMUTE" ? "Remote" : "",
+        orgName(requirements),
+        address?.addressLocality,
+        address?.addressRegion,
+        address?.addressCountry,
+      ]
+        .filter(Boolean)
+        .join(", ")
+    );
+  }
+
+  function diceEmploymentTypeFromJsonLd(job) {
+    const value = jsonLdStringList(job?.employmentType).join(" ");
+    if (!value) return "";
+    const normalized = value.toUpperCase().replace(/[_\s]+/g, "_");
+    const labels = {
+      CONTRACTOR: "Contract",
+      TEMPORARY: "Contract",
+      FULL_TIME: "Full-time",
+      PART_TIME: "Part-time",
+    };
+    return labels[normalized] || clean(value);
+  }
+
+  function htmlToText(html) {
+    const template = document.createElement("template");
+    template.innerHTML = html || "";
+    return clean(template.content.textContent || "");
+  }
+
+  function unique(values) {
+    return Array.from(new Set(values.map(clean).filter(Boolean)));
   }
 
   function diceWizardHeaderText(detailLink) {
@@ -239,10 +361,12 @@
     const key = `${rule.source}:${location.href}`;
     if (sessionStorage.getItem(CONFIRMED_KEY) === key) return;
     sessionStorage.setItem(CONFIRMED_KEY, key);
+    const opportunity = await currentOpportunity(rule);
     chrome.runtime.sendMessage(
       {
         type: "APPLICATION_CONFIRMED",
         source: rule.source,
+        opportunity,
         warnings: [],
       },
       () => {

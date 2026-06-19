@@ -28,7 +28,7 @@ def sort_application_records(
     sort: str = "applied",
     direction: str = "desc",
 ) -> list[ApplicationRecord]:
-    sort_key = sort if sort in {"applied", "source", "role", "company", "location"} else "applied"
+    sort_key = sort if sort in {"applied", "source", "role", "company"} else "applied"
     reverse = direction != "asc"
     sorted_records = sorted(records, key=lambda record: _sort_value(record, sort_key), reverse=reverse)
     return sorted(sorted_records, key=lambda record: _sort_value(record, sort_key) == "")
@@ -58,7 +58,7 @@ def render_application_dashboard(
     if not rows:
         rows = """
         <tr>
-          <td colspan="6" class="empty">No applications match the current filters.</td>
+          <td colspan="5" class="empty">No applications match the current filters.</td>
         </tr>
         """
 
@@ -175,7 +175,7 @@ def render_application_dashboard(
       table {{
         width: 100%;
         border-collapse: collapse;
-        min-width: 900px;
+        min-width: 780px;
       }}
       th,
       td {{
@@ -260,7 +260,7 @@ def render_application_dashboard(
       </section>
 
       <form method="get" action="/dashboard">
-        <input name="q" value="{_h(query)}" placeholder="Search role, company, location, or URL" autocomplete="off" />
+        <input name="q" value="{_h(query)}" placeholder="Search role, company, source, or URL" autocomplete="off" />
         <select name="source">
           {"".join(source_options)}
         </select>
@@ -281,7 +281,6 @@ def render_application_dashboard(
               <th>{_sort_header("Source", "source", sort=sort, direction=direction, query=query, source=source, limit=limit)}</th>
               <th>{_sort_header("Role", "role", sort=sort, direction=direction, query=query, source=source, limit=limit)}</th>
               <th>{_sort_header("Company", "company", sort=sort, direction=direction, query=query, source=source, limit=limit)}</th>
-              <th>{_sort_header("Location", "location", sort=sort, direction=direction, query=query, source=source, limit=limit)}</th>
               <th>Links</th>
             </tr>
           </thead>
@@ -299,7 +298,6 @@ def render_application_dashboard(
 def _application_row(record: ApplicationRecord, *, draft_ids_by_source_url: Mapping[str, str]) -> str:
     role = _h(record.title or "Untitled role")
     company = _h(record.company or "-")
-    location = _h(record.location or "-")
     source_url = _h(record.source_url)
     draft_id = record.draft_id or draft_ids_by_source_url.get(record.normalized_source_url, "")
     draft_link = f'<a href="/drafts/{_h(draft_id)}">Draft</a>' if draft_id else '<span class="muted">No draft</span>'
@@ -310,7 +308,6 @@ def _application_row(record: ApplicationRecord, *, draft_ids_by_source_url: Mapp
           <td><span class="source">{_h(record.source or "unknown")}</span></td>
           <td class="role"><strong>{role}</strong><span class="muted">{source_url}</span></td>
           <td>{company}</td>
-          <td>{location}</td>
           <td>{job_link} · {draft_link}</td>
         </tr>
     """
@@ -321,7 +318,6 @@ def _search_blob(record: ApplicationRecord) -> str:
         [
             record.title,
             record.company,
-            record.location,
             record.source,
             record.source_url,
         ]
@@ -335,13 +331,11 @@ def _sort_value(record: ApplicationRecord, sort: str) -> str:
         return record.title.lower()
     if sort == "company":
         return record.company.lower()
-    if sort == "location":
-        return record.location.lower()
     return record.applied_at
 
 
 def _sort_state(sort: str, direction: str) -> tuple[str, str]:
-    safe_sort = sort if sort in {"applied", "source", "role", "company", "location"} else "applied"
+    safe_sort = sort if sort in {"applied", "source", "role", "company"} else "applied"
     safe_direction = "asc" if direction == "asc" else "desc"
     return safe_sort, safe_direction
 

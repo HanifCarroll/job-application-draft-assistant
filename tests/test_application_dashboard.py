@@ -14,7 +14,7 @@ def test_filter_application_records_searches_core_fields() -> None:
 
     assert filter_application_records([dice, indeed], query="skybridge") == [dice]
     assert filter_application_records([dice, indeed], source="indeed") == [indeed]
-    assert filter_application_records([dice, indeed], query="remote", source="dice") == [dice]
+    assert filter_application_records([dice, indeed], query="remote") == []
 
 
 def test_sort_application_records_sorts_before_display_limit() -> None:
@@ -41,6 +41,8 @@ def test_render_application_dashboard_escapes_application_fields() -> None:
     assert '<script>alert(1)</script>' not in html
     assert "/applications?limit=50&amp;source=dice" in html
     assert "Detected By" not in html
+    assert "Location" not in html
+    assert "Remote" not in html
     assert "sort=company" in html
 
 

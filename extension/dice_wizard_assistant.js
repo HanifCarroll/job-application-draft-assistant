@@ -136,6 +136,7 @@
   let autoStartedForJobId = "";
   let stepPollTimer = 0;
   let stepPollCount = 0;
+  let lastKnownHref = location.href;
 
   function startCoverLetterFlow(options = {}) {
     if (activeRun) return;
@@ -379,6 +380,13 @@
     startCoverLetterFlow();
   }
 
+  function startStepPolling() {
+    window.clearInterval(stepPollTimer);
+    stepPollCount = 0;
+    pollForResumeStep();
+    stepPollTimer = window.setInterval(pollForResumeStep, 1000);
+  }
+
   function pollForResumeStep() {
     stepPollCount += 1;
     maybeStart();
@@ -387,6 +395,28 @@
     }
   }
 
-  stepPollTimer = window.setInterval(pollForResumeStep, 1000);
-  window.setTimeout(pollForResumeStep, 600);
+  function handleRouteChange({ force = false } = {}) {
+    if (!force && location.href === lastKnownHref) return;
+    lastKnownHref = location.href;
+    window.clearInterval(stepPollTimer);
+    if (isDiceWizard()) {
+      startStepPolling();
+    }
+  }
+
+  function installRouteWatcher() {
+    for (const method of ["pushState", "replaceState"]) {
+      const original = history[method];
+      history[method] = function patchedHistoryMethod(...args) {
+        const result = original.apply(this, args);
+        window.setTimeout(() => handleRouteChange(), 0);
+        return result;
+      };
+    }
+    window.addEventListener("popstate", () => handleRouteChange());
+    window.setInterval(() => handleRouteChange(), 1000);
+  }
+
+  installRouteWatcher();
+  window.setTimeout(() => handleRouteChange({ force: true }), 600);
 })();

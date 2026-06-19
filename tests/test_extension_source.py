@@ -184,10 +184,15 @@ def test_extension_wires_application_logging() -> None:
     assert "remote_status" not in application_logger_js
     assert "submitSelectors" in application_logger_js
     assert "confirmationSelectors" in application_logger_js
+    assert "(rule.confirmationSelectors || []).some" in application_logger_js
+    assert "(rule.confirmationPathPatterns || []).some" in application_logger_js
     assert 'captureOpportunity: diceWizardOpportunity' in application_logger_js
-    assert '/^\\/job-applications\\/([^/]+)\\/wizard/' in application_logger_js
+    assert '/^\\/job-applications\\/([^/]+)\\/wizard(?:\\/success)?\\/?$/' in application_logger_js
     assert '/\\/job-applications\\/[^/]+\\/wizard\\/success\\/?$/' in application_logger_js
-    assert 'a[href="/job-detail/${wizardMatch[1]}"]' in application_logger_js
+    assert "diceDetailOpportunity" in application_logger_js
+    assert 'script[type="application/ld+json"]' in application_logger_js
+    assert 'type === "JobPosting"' in application_logger_js
+    assert "message.opportunity || pending?.opportunity" in background_js
     assert "document.body" not in application_logger_js
 
     assert "job-application-dice-cover-letter-panel" in dice_wizard_assistant_js
@@ -199,6 +204,9 @@ def test_extension_wires_application_logging() -> None:
     assert "Show in Finder" in dice_wizard_assistant_js
     assert "Generate PDF" in dice_wizard_assistant_js
     assert "pollForResumeStep" in dice_wizard_assistant_js
+    assert "installRouteWatcher" in dice_wizard_assistant_js
+    assert "patchedHistoryMethod" in dice_wizard_assistant_js
+    assert 'window.setInterval(() => handleRouteChange(), 1000)' in dice_wizard_assistant_js
     assert "autoStartedForJobId" in dice_wizard_assistant_js
     assert "MutationObserver" not in dice_wizard_assistant_js
     assert "coverLetterFileInput" not in dice_wizard_assistant_js
