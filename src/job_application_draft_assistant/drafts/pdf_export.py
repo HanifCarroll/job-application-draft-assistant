@@ -44,7 +44,7 @@ def export_cover_letter_pdf(stored: StoredDraft, output_dir: Path, resume_pdf_pa
         raise PdfExportError("Cover letter draft is empty.")
 
     output_dir.mkdir(parents=True, exist_ok=True)
-    pdf_path = _pdf_path_for(stored, output_dir)
+    pdf_path = cover_letter_pdf_path(stored, output_dir)
     header = extract_resume_header(resume_pdf_path)
     _render_pdf(stored, header, pdf_path)
 
@@ -55,6 +55,27 @@ def export_cover_letter_pdf(stored: StoredDraft, output_dir: Path, resume_pdf_pa
         download_url=f"/drafts/{stored.id}/pdf",
         warnings=header.warnings,
     )
+
+
+def cover_letter_pdf_path(stored: StoredDraft, output_dir: Path) -> Path:
+    opportunity = stored.request.opportunity_snapshot()
+    company = _filename_part(opportunity.company, "Company")
+    title = _filename_part(opportunity.title, "Role")
+    name = f"Hanif-Carroll-Cover-Letter-{company}-{title}.pdf"
+    return output_dir / name
+
+
+def archive_cover_letter_pdf(stored: StoredDraft, output_dir: Path, archive_dir: Path) -> Path | None:
+    if stored.draft.draft_type != "cover_letter":
+        return None
+    pdf_path = cover_letter_pdf_path(stored, output_dir)
+    if not pdf_path.is_file():
+        return None
+
+    archive_dir.mkdir(parents=True, exist_ok=True)
+    archive_path = _archive_pdf_path_for(stored, archive_dir, pdf_path.name)
+    pdf_path.replace(archive_path)
+    return archive_path
 
 
 def reveal_pdf(pdf_path: Path, output_dir: Path) -> bool:
@@ -202,12 +223,10 @@ def _styles() -> dict[str, ParagraphStyle]:
     }
 
 
-def _pdf_path_for(stored: StoredDraft, output_dir: Path) -> Path:
-    opportunity = stored.request.opportunity_snapshot()
-    company = _filename_part(opportunity.company, "Company")
-    title = _filename_part(opportunity.title, "Role")
-    name = f"Hanif-Carroll-Cover-Letter-{company}-{title}.pdf"
-    return output_dir / name
+def _archive_pdf_path_for(stored: StoredDraft, archive_dir: Path, filename: str) -> Path:
+    source_path = Path(filename)
+    suffix = source_path.suffix or ".pdf"
+    return archive_dir / f"{source_path.stem}-{stored.id[:8]}{suffix}"
 
 
 def _filename_part(value: str, default: str) -> str:

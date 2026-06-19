@@ -98,6 +98,7 @@ Supported environment variables:
 | `JOB_APPLICATION_DRAFT_CONTEXT_DIR` | `data/context` | Generated context cache. |
 | `JOB_APPLICATION_DRAFT_RUNTIME_DIR` | `.runtime` | Runtime directory for local backend artifacts. |
 | `JOB_APPLICATION_DRAFT_PDF_OUTPUT_DIR` | `.runtime/cover-letters` | Directory where generated cover letter PDFs are saved. |
+| `JOB_APPLICATION_DRAFT_PDF_ARCHIVE_DIR` | `.runtime/cover-letters/archive` | Directory where submitted cover letter PDFs are moved after the application is logged. |
 | `JOB_APPLICATION_DRAFT_RESUME_PDF_PATH` | `~/Library/Mobile Documents/com~apple~CloudDocs/Downloads/Hanif-Carroll-Resume.pdf` | Resume PDF used for cover letter letterhead data. Phone-like contact items are omitted from exports. |
 | `JOB_APPLICATION_DRAFT_DB_PATH` | `.runtime/drafts.db` | SQLite database path. |
 | `JOB_APPLICATION_DRAFT_CODEX_RUNS_DIR` | `.runtime/codex-runs` | Per-run Codex workspaces. |
@@ -248,6 +249,8 @@ PDF export is available for completed `cover_letter` drafts. The backend renders
 
 The default resume source is the iCloud Downloads resume path shown in Configuration. The exporter reads only the resume header/contact lines needed for letterhead and skips phone-like contact items.
 
+After an application is logged with an attached cover letter draft, the backend moves the already-generated PDF from `JOB_APPLICATION_DRAFT_PDF_OUTPUT_DIR` into `JOB_APPLICATION_DRAFT_PDF_ARCHIVE_DIR`. If no PDF was generated for that draft, application logging still succeeds and no archive file is created.
+
 The popup enables `Generate PDF` after a cover letter draft succeeds. PDF generation is started through the extension background service worker and persisted in `chrome.storage.local`, so closing the popup does not own or clear the in-progress export state. After generation, `Finder` asks the local backend to reveal the generated PDF file. The backend only reveals files it generated under the configured PDF output directory.
 
 On Dice application wizard pages, the extension can automatically generate the cover letter PDF and expose `Open PDF` plus `Show in Finder` actions. Dice still owns its upload control; attach the generated PDF through Dice's file picker.
@@ -262,6 +265,7 @@ Stored locally:
 - Chrome extension queued application logs in `chrome.storage.local` when the backend is unavailable.
 - SQLite data in `.runtime/drafts.db`: job details, user notes, draft text, audit trail, and applied-job ledger.
 - Generated cover letter PDFs in `.runtime/cover-letters/` by default.
+- Archived submitted cover letter PDFs in `.runtime/cover-letters/archive/` by default.
 - Codex run workspaces in `.runtime/codex-runs/`: final JSON messages from individual Codex runs.
 - Generated context in `data/context/`: profile, offers, and project proof points derived from your configured context source.
 

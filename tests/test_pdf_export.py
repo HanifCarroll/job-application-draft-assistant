@@ -8,7 +8,13 @@ from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen.canvas import Canvas
 
 from job_application_draft_assistant.models import DraftRequest, OpportunitySnapshot
-from job_application_draft_assistant.drafts.pdf_export import PdfExportError, export_cover_letter_pdf, extract_resume_header, reveal_pdf
+from job_application_draft_assistant.drafts.pdf_export import (
+    PdfExportError,
+    archive_cover_letter_pdf,
+    export_cover_letter_pdf,
+    extract_resume_header,
+    reveal_pdf,
+)
 from job_application_draft_assistant.drafts.storage import make_stored_draft
 
 
@@ -122,6 +128,46 @@ def test_export_cover_letter_pdf_overwrites_same_company_role_filename(tmp_path:
     text = _pdf_text(Path(second_export.pdf_path))
     assert "Second draft body." in text
     assert "First draft body." not in text
+
+
+def test_archive_cover_letter_pdf_moves_generated_file_to_archive(tmp_path: Path) -> None:
+    resume_path = tmp_path / "resume.pdf"
+    output_dir = tmp_path / "letters"
+    archive_dir = output_dir / "archive"
+    _write_resume_pdf(
+        resume_path,
+        [
+            "Hanif Carroll",
+            "Product Engineer",
+            "hanif@example.com | hanifcarroll.com",
+        ],
+    )
+    stored = make_stored_draft(
+        DraftRequest(opportunity=OpportunitySnapshot(title="Software Engineer", company="Acme Systems")),
+        _draft_payload("Archived draft body."),
+    )
+    exported = export_cover_letter_pdf(stored, output_dir, resume_path)
+    active_path = Path(exported.pdf_path)
+    original_bytes = active_path.read_bytes()
+
+    archive_path = archive_cover_letter_pdf(stored, output_dir, archive_dir)
+
+    assert archive_path is not None
+    assert archive_path == archive_dir / f"Hanif-Carroll-Cover-Letter-Acme-Systems-Software-Engineer-{stored.id[:8]}.pdf"
+    assert archive_path.read_bytes() == original_bytes
+    assert not active_path.exists()
+
+
+def test_archive_cover_letter_pdf_ignores_missing_generated_file(tmp_path: Path) -> None:
+    stored = make_stored_draft(
+        DraftRequest(opportunity=OpportunitySnapshot(title="Software Engineer", company="Acme Systems")),
+        _draft_payload("Draft body."),
+    )
+
+    archive_path = archive_cover_letter_pdf(stored, tmp_path / "letters", tmp_path / "archive")
+
+    assert archive_path is None
+    assert not (tmp_path / "archive").exists()
 
 
 def test_export_cover_letter_pdf_rejects_upwork_proposal(tmp_path: Path) -> None:

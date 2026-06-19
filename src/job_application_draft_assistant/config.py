@@ -32,6 +32,7 @@ class AppPaths:
     context_dir: Path = env_path("JOB_APPLICATION_DRAFT_CONTEXT_DIR", REPO_ROOT / "data" / "context")
     runtime_dir: Path = env_path("JOB_APPLICATION_DRAFT_RUNTIME_DIR", REPO_ROOT / ".runtime")
     pdf_output_dir: Path = env_path("JOB_APPLICATION_DRAFT_PDF_OUTPUT_DIR", REPO_ROOT / ".runtime" / "cover-letters")
+    pdf_archive_dir: Path = env_path("JOB_APPLICATION_DRAFT_PDF_ARCHIVE_DIR", REPO_ROOT / ".runtime" / "cover-letters" / "archive")
     resume_pdf_path: Path = env_path("JOB_APPLICATION_DRAFT_RESUME_PDF_PATH", default_resume_pdf_path())
     db_path: Path = env_path("JOB_APPLICATION_DRAFT_DB_PATH", REPO_ROOT / ".runtime" / "drafts.db")
     codex_runs_dir: Path = env_path("JOB_APPLICATION_DRAFT_CODEX_RUNS_DIR", REPO_ROOT / ".runtime" / "codex-runs")
@@ -46,4 +47,5 @@ class AppPaths:
         self.context_dir.mkdir(parents=True, exist_ok=True)
         self.runtime_dir.mkdir(parents=True, exist_ok=True)
         self.pdf_output_dir.mkdir(parents=True, exist_ok=True)
+        self.pdf_archive_dir.mkdir(parents=True, exist_ok=True)
         self.codex_runs_dir.mkdir(parents=True, exist_ok=True)

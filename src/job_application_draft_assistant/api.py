@@ -29,7 +29,12 @@ from job_application_draft_assistant.models import (
     ReindexResponse,
     RevealPdfResponse,
 )
-from job_application_draft_assistant.drafts.pdf_export import PdfExportError, export_cover_letter_pdf, reveal_pdf
+from job_application_draft_assistant.drafts.pdf_export import (
+    PdfExportError,
+    archive_cover_letter_pdf,
+    export_cover_letter_pdf,
+    reveal_pdf,
+)
 from job_application_draft_assistant.drafts.storage import DraftStore, DraftStoreValidationError
 from job_application_draft_assistant.drafts.view import render_draft_view
 
@@ -134,8 +139,12 @@ def create_app() -> FastAPI:
     @app.post("/applications")
     def log_application(request: ApplicationLogRequest) -> ApplicationRecord:
         try:
-            return application_store.log(request)
+            record = application_store.log(request)
+            _archive_cover_letter_for_application(record, store, paths)
+            return record
         except ApplicationStoreValidationError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        except DraftStoreValidationError as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
 
     @app.get("/applications/lookup")
@@ -242,6 +251,15 @@ def _draft_ids_by_source_url(store: DraftStore) -> dict[str, str]:
         if normalized and normalized not in draft_ids:
             draft_ids[normalized] = draft.id
     return draft_ids
+
+
+def _archive_cover_letter_for_application(record: ApplicationRecord, store: DraftStore, paths: AppPaths) -> None:
+    if not record.draft_id:
+        return
+    stored = store.get_stored_draft(record.draft_id)
+    if stored is None:
+        return
+    archive_cover_letter_pdf(stored, paths.pdf_output_dir, paths.pdf_archive_dir)
 
 
 def _latest_draft_response_by_source_url(store: DraftStore, source_url: str) -> DraftResponse | None:
