@@ -80,6 +80,7 @@ def test_draft_type_prompt_targets_job_platform_contracts() -> None:
     for required in ["exactly match", "named tool or industry", "do not apologize", "closest real experience"]:
         assert required in draft_type_rules
 
+    assert "Best,\nHanif Carroll" in draft_type_rules
     assert "Upwork client" in draft_type_rules
     assert "next-step question" in draft_type_rules
     assert "compliance report" in draft_type_rules

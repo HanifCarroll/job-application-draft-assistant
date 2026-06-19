@@ -19,6 +19,9 @@ from reportlab.platypus import HRFlowable, Paragraph, SimpleDocTemplate, Spacer
 from upwork_proposal_assistant.models import PdfExportResponse, StoredDraft
 
 
+STANDARD_SIGNOFF = "Best,\nHanif Carroll"
+
+
 class PdfExportError(Exception):
     pass
 
@@ -117,7 +120,7 @@ def _render_pdf(stored: StoredDraft, header: ResumeHeader, pdf_path: Path) -> No
     if header.headline:
         story.append(Paragraph(escape(header.headline), styles["headline"]))
     if header.contacts:
-        story.append(Paragraph(escape(" | ".join(header.contacts)), styles["contact"]))
+        story.append(Paragraph(_contacts_markup(header.contacts), styles["contact"]))
     story.append(Spacer(1, 8))
     story.append(HRFlowable(width="100%", thickness=0.6, color=colors.HexColor("#6f7a74"), spaceAfter=16))
 
@@ -131,7 +134,7 @@ def _render_pdf(stored: StoredDraft, header: ResumeHeader, pdf_path: Path) -> No
         story.append(Paragraph("<br/>".join(escape(line) for line in recipient_lines), styles["meta"]))
         story.append(Spacer(1, 14))
 
-    for paragraph in _draft_paragraphs(stored.draft.draft_text):
+    for paragraph in _letter_paragraphs(stored.draft.draft_text):
         story.append(Paragraph(_paragraph_markup(paragraph), styles["body"]))
         story.append(Spacer(1, 9))
 
@@ -221,9 +224,47 @@ def _draft_paragraphs(text: str) -> list[str]:
     return [paragraph.strip() for paragraph in re.split(r"\n\s*\n", text.strip()) if paragraph.strip()]
 
 
+def _letter_paragraphs(text: str) -> list[str]:
+    paragraphs = _draft_paragraphs(text)
+    while paragraphs and _is_signature_paragraph(paragraphs[-1]):
+        paragraphs.pop()
+    return [*paragraphs, STANDARD_SIGNOFF]
+
+
+def _is_signature_paragraph(paragraph: str) -> bool:
+    lines = [_clean_line(line).lower().strip(" .") for line in paragraph.splitlines() if _clean_line(line)]
+    if not lines:
+        return False
+    if len(lines) == 1:
+        return lines[0] in {"hanif", "hanif carroll"}
+    closings = {"best,", "best", "sincerely,", "sincerely", "regards,", "regards", "thanks,", "thanks", "thank you,"}
+    return len(lines) <= 3 and lines[0] in closings and all(len(line) <= 40 for line in lines)
+
+
 def _paragraph_markup(paragraph: str) -> str:
     escaped_lines = [escape(line.strip()) for line in paragraph.splitlines() if line.strip()]
     return "<br/>".join(escaped_lines)
+
+
+def _contacts_markup(contacts: list[str]) -> str:
+    return " | ".join(_link_markup(contact) for contact in contacts)
+
+
+def _link_markup(label: str) -> str:
+    href = _contact_href(label)
+    if not href:
+        return escape(label)
+    return f'<link href="{escape(href, quote=True)}" color="#596861">{escape(label)}</link>'
+
+
+def _contact_href(label: str) -> str:
+    if "@" in label:
+        return f"mailto:{label}"
+    if label.startswith(("http://", "https://")):
+        return label
+    if "." in label:
+        return f"https://{label}"
+    return ""
 
 
 def _contact_line(lines: list[str]) -> str:

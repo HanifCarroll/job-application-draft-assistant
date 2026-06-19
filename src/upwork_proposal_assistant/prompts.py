@@ -41,6 +41,9 @@ Draft-type rules:
 - Add useful context beyond a resume: working style, similar domain fit, availability, contract setup, or ability to adapt to new tools and domains.
 - If the background does not exactly match a named tool or industry, do not apologize or list what is missing. Instead, connect the closest real experience and keep the statement modest.
 - Close with interest in discussing fit for the role.
+- End the cover letter with this exact signoff:
+Best,
+Hanif Carroll
 - For `upwork_proposal`, write a concise freelancer proposal for the Upwork client.
 - Use 120-180 words unless the opportunity clearly needs less.
 - Open with the specific client problem and the strongest honest fit.

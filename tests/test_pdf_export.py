@@ -85,6 +85,13 @@ def test_export_cover_letter_pdf_contains_letterhead_and_draft(tmp_path: Path) -
     assert "Acme Systems" in text
     assert "Re: Software Engineer" in text
     assert "I can help build this service carefully." in text
+    assert "Best,\nHanif Carroll" in text
+    assert "Best,\nHanif\n" not in text
+    assert set(_pdf_uris(Path(exported.pdf_path))) == {
+        "mailto:hanif@example.com",
+        "https://linkedin.com/in/hanifcarroll",
+        "https://hanifcarroll.com",
+    }
 
 
 def test_export_cover_letter_pdf_rejects_upwork_proposal(tmp_path: Path) -> None:
@@ -136,3 +143,16 @@ def _write_resume_pdf(path: Path, lines: list[str]) -> None:
 def _pdf_text(path: Path) -> str:
     reader = PdfReader(str(path))
     return "\n".join(page.extract_text() or "" for page in reader.pages)
+
+
+def _pdf_uris(path: Path) -> list[str]:
+    reader = PdfReader(str(path))
+    uris: list[str] = []
+    for page in reader.pages:
+        annotations = page.get("/Annots", [])
+        for annotation_ref in annotations:
+            annotation = annotation_ref.get_object()
+            action = annotation.get("/A")
+            if action and action.get("/URI"):
+                uris.append(str(action["/URI"]))
+    return uris
