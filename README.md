@@ -6,6 +6,8 @@ The extension extracts the current job opportunity, lets you review it, and send
 
 This project is not affiliated with Upwork, Dice, Indeed, ZipRecruiter, Robert Half, or any other job platform.
 
+This is a personal local tool shared as-is for people who want to use or adapt it. No support is guaranteed.
+
 ## Features
 
 - Extracts title, company, location, compensation, description, skills, and URL from supported job pages.
@@ -234,17 +236,8 @@ Before publishing your fork, make sure `.runtime/`, `data/context/`, `.env`, and
 Run checks:
 
 ```bash
-uv run mypy src tests
-uv run pytest
-node --check extension/background.js
-node --check extension/popup.js
-node --check extension/content_script.js
-node --check extension/options.js
-python -m json.tool extension/manifest.json >/dev/null
-python -m json.tool schemas/draft_response.schema.json >/dev/null
+scripts/check
 ```
-
-The repository includes a GitHub Actions workflow that runs these checks on pushes and pull requests.
 
 ## License
 
