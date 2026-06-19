@@ -15,9 +15,30 @@ async function saveDraftState(state) {
   });
 }
 
+async function loadDraftState() {
+  const stored = await chrome.storage.local.get(DRAFT_STATE_KEY);
+  return stored[DRAFT_STATE_KEY] || {};
+}
+
+async function patchDraftState(patch) {
+  const existing = await loadDraftState();
+  await saveDraftState({ ...existing, ...patch });
+}
+
 async function backendUrl() {
   const stored = await chrome.storage.local.get(API_BASE_KEY);
   return (stored[API_BASE_KEY] || DEFAULT_API_BASE).replace(/\/+$/, "");
+}
+
+async function responseErrorMessage(response) {
+  const text = await response.text();
+  if (!text) return `Backend returned ${response.status}`;
+  try {
+    const payload = JSON.parse(text);
+    return payload?.detail || text;
+  } catch (_error) {
+    return text;
+  }
 }
 
 async function startDraftJob(request) {
@@ -39,8 +60,7 @@ async function startDraftJob(request) {
       body: JSON.stringify(request),
     });
     if (!response.ok) {
-      const detail = await response.text();
-      throw new Error(detail || `Backend returned ${response.status}`);
+      throw new Error(await responseErrorMessage(response));
     }
 
     const job = await response.json();
@@ -70,11 +90,59 @@ async function startDraftJob(request) {
   }
 }
 
-chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-  if (message?.type !== "START_DRAFT_JOB") return false;
+async function startPdfExport(draftId) {
+  const startedAt = nowIso();
+  await patchDraftState({
+    pdf_status: "generating",
+    pdf_error: null,
+    pdf: null,
+    pdf_started_at: startedAt,
+  });
 
-  startDraftJob(message.request)
-    .then((response) => sendResponse(response))
-    .catch((error) => sendResponse({ ok: false, error: error?.message || String(error) }));
-  return true;
+  try {
+    const apiBase = await backendUrl();
+    const response = await fetch(`${apiBase}/drafts/${encodeURIComponent(draftId)}/pdf`, { method: "POST" });
+    if (!response.ok) {
+      throw new Error(await responseErrorMessage(response));
+    }
+
+    const pdf = await response.json();
+    const state = {
+      ...(await loadDraftState()),
+      pdf_status: "succeeded",
+      pdf_error: null,
+      pdf,
+      pdf_finished_at: nowIso(),
+    };
+    await saveDraftState(state);
+    return { ok: true, state, pdf };
+  } catch (error) {
+    const message = error?.message || String(error);
+    const state = {
+      ...(await loadDraftState()),
+      pdf_status: "failed",
+      pdf_error: message,
+      pdf_finished_at: nowIso(),
+    };
+    await saveDraftState(state);
+    return { ok: false, state, error: message };
+  }
+}
+
+chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (message?.type === "START_DRAFT_JOB") {
+    startDraftJob(message.request)
+      .then((response) => sendResponse(response))
+      .catch((error) => sendResponse({ ok: false, error: error?.message || String(error) }));
+    return true;
+  }
+
+  if (message?.type === "START_PDF_EXPORT") {
+    startPdfExport(message.draft_id)
+      .then((response) => sendResponse(response))
+      .catch((error) => sendResponse({ ok: false, error: error?.message || String(error) }));
+    return true;
+  }
+
+  return false;
 });

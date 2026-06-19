@@ -125,11 +125,17 @@ def test_popup_uses_unified_source_aware_snapshot_form() -> None:
 def test_popup_wires_cover_letter_pdf_controls() -> None:
     popup_html = (REPO_ROOT / "extension" / "popup.html").read_text(encoding="utf-8")
     popup_js = (REPO_ROOT / "extension" / "popup.js").read_text(encoding="utf-8")
+    background_js = (REPO_ROOT / "extension" / "background.js").read_text(encoding="utf-8")
 
     for field_id in ["generate-pdf", "open-pdf-folder", "pdf-status"]:
         assert f'id="{field_id}"' in popup_html
 
-    assert "/pdf`" in popup_js
+    assert "START_PDF_EXPORT" in popup_js
+    assert "START_PDF_EXPORT" in background_js
+    assert "pdf_status" in popup_js
+    assert "pdf_status" in background_js
+    assert "chrome.storage.onChanged" in popup_js
+    assert "/pdf`" in background_js
     assert "/pdf/reveal`" in popup_js
     assert "draftType.value === \"cover_letter\"" in popup_js
     assert "setPdfControls" in popup_js

@@ -20,7 +20,7 @@ from upwork_proposal_assistant.models import (
     RevealPdfResponse,
 )
 from upwork_proposal_assistant.pdf_export import PdfExportError, export_cover_letter_pdf, reveal_pdf
-from upwork_proposal_assistant.storage import DraftStore
+from upwork_proposal_assistant.storage import DraftStore, DraftStoreValidationError
 
 
 def create_app() -> FastAPI:
@@ -89,18 +89,27 @@ def create_app() -> FastAPI:
         record = job_store.get(job_id)
         if record is None:
             raise HTTPException(status_code=404, detail="Draft job not found")
-        return build_job_status(record, store)
+        try:
+            return build_job_status(record, store)
+        except DraftStoreValidationError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
 
     @app.get("/drafts/{draft_id}")
     def get_draft(draft_id: str) -> DraftResponse:
-        response = store.get_response(draft_id)
+        try:
+            response = store.get_response(draft_id)
+        except DraftStoreValidationError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
         if response is None:
             raise HTTPException(status_code=404, detail="Draft not found")
         return response
 
     @app.post("/drafts/{draft_id}/pdf")
     def create_pdf(draft_id: str) -> PdfExportResponse:
-        stored = store.get_stored_draft(draft_id)
+        try:
+            stored = store.get_stored_draft(draft_id)
+        except DraftStoreValidationError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
         if stored is None:
             raise HTTPException(status_code=404, detail="Draft not found")
         try:
@@ -110,7 +119,10 @@ def create_app() -> FastAPI:
 
     @app.get("/drafts/{draft_id}/pdf")
     def get_pdf(draft_id: str) -> FileResponse:
-        stored = store.get_stored_draft(draft_id)
+        try:
+            stored = store.get_stored_draft(draft_id)
+        except DraftStoreValidationError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
         if stored is None:
             raise HTTPException(status_code=404, detail="Draft not found")
         try:
@@ -125,7 +137,10 @@ def create_app() -> FastAPI:
 
     @app.post("/drafts/{draft_id}/pdf/reveal")
     def reveal_pdf_file(draft_id: str) -> RevealPdfResponse:
-        stored = store.get_stored_draft(draft_id)
+        try:
+            stored = store.get_stored_draft(draft_id)
+        except DraftStoreValidationError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
         if stored is None:
             raise HTTPException(status_code=404, detail="Draft not found")
         try:

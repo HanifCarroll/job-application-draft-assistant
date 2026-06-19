@@ -85,6 +85,17 @@ async function backendUrl() {
   return (stored[API_BASE_KEY] || DEFAULT_API_BASE).replace(/\/+$/, "");
 }
 
+async function responseErrorMessage(response) {
+  const text = await response.text();
+  if (!text) return `Backend returned ${response.status}`;
+  try {
+    const payload = JSON.parse(text);
+    return payload?.detail || text;
+  } catch (_error) {
+    return text;
+  }
+}
+
 async function writeDraftState(state) {
   currentState = {
     ...state,
@@ -328,9 +339,17 @@ function canGeneratePdf() {
 
 function setPdfControls(pdf) {
   const canExport = canGeneratePdf();
-  els.generatePdf.disabled = !canExport;
-  els.openPdfFolder.disabled = !canExport || !pdf;
-  els.pdfStatus.textContent = pdf?.filename ? `PDF: ${pdf.filename}` : "";
+  const pdfStatus = currentState?.pdf_status || "";
+  const isGenerating = pdfStatus === "generating";
+  els.generatePdf.disabled = !canExport || isGenerating;
+  els.openPdfFolder.disabled = !canExport || isGenerating || !pdf;
+  if (isGenerating) {
+    els.pdfStatus.textContent = "Generating PDF...";
+  } else if (pdfStatus === "failed") {
+    els.pdfStatus.textContent = currentState?.pdf_error ? `PDF failed: ${currentState.pdf_error}` : "PDF failed.";
+  } else {
+    els.pdfStatus.textContent = pdf?.filename ? `PDF: ${pdf.filename}` : "";
+  }
 }
 
 function renderDraft(job, draft) {
@@ -351,6 +370,8 @@ async function persistEditableSnapshot() {
     draft_text: els.proposal.value,
     audit: els.audit.textContent,
     pdf: currentPdf(),
+    pdf_status: currentState?.pdf_status || null,
+    pdf_error: currentState?.pdf_error || null,
     error: null,
   });
 }
@@ -429,6 +450,8 @@ async function finishDraftJob(jobId) {
     draft_text: outputText,
     audit,
     pdf: null,
+    pdf_status: null,
+    pdf_error: null,
     error: null,
     started_at: currentState?.started_at,
   });
@@ -449,7 +472,7 @@ async function restoreDraftState(stateToRestore = null) {
 
   if (state.phase === "succeeded" && state.result && state.job) {
     renderDraft(state.job, state.result);
-    setStatus("Draft ready.");
+    setStatus(state.pdf_status === "generating" ? "Generating PDF..." : "Draft ready.");
     clearProgress();
     return true;
   }
@@ -514,6 +537,8 @@ els.draft.addEventListener("click", async () => {
       draft_text: "",
       audit: "",
       pdf: null,
+      pdf_status: null,
+      pdf_error: null,
       started_at: nowIso(),
       error: null,
     });
@@ -533,22 +558,17 @@ els.draft.addEventListener("click", async () => {
   }
 });
 
-async function createPdf(draftId) {
-  const apiBase = await backendUrl();
-  const response = await fetch(`${apiBase}/drafts/${encodeURIComponent(draftId)}/pdf`, { method: "POST" });
-  if (!response.ok) {
-    const detail = await response.text();
-    throw new Error(detail || `Backend returned ${response.status}`);
-  }
-  return response.json();
+async function startPdfExport(draftId) {
+  const response = await chrome.runtime.sendMessage({ type: "START_PDF_EXPORT", draft_id: draftId });
+  if (!response?.ok) throw new Error(response?.error || "Could not generate PDF.");
+  return response.state;
 }
 
 async function revealPdf(draftId) {
   const apiBase = await backendUrl();
   const response = await fetch(`${apiBase}/drafts/${encodeURIComponent(draftId)}/pdf/reveal`, { method: "POST" });
   if (!response.ok) {
-    const detail = await response.text();
-    throw new Error(detail || `Backend returned ${response.status}`);
+    throw new Error(await responseErrorMessage(response));
   }
   return response.json();
 }
@@ -557,11 +577,17 @@ els.generatePdf.addEventListener("click", async () => {
   const draftId = currentDraftId();
   if (!draftId) return;
   try {
-    els.generatePdf.disabled = true;
+    currentState = {
+      ...currentState,
+      pdf_status: "generating",
+      pdf_error: null,
+      pdf: null,
+    };
+    setPdfControls(null);
     setStatus("Generating PDF...");
-    const pdf = await createPdf(draftId);
-    await patchDraftState({ pdf });
-    setPdfControls(pdf);
+    const state = await startPdfExport(draftId);
+    currentState = state;
+    setPdfControls(currentPdf());
     setStatus("PDF generated.");
   } catch (error) {
     setPdfControls(currentPdf());
@@ -600,6 +626,21 @@ els.settings.addEventListener("click", () => {
   element.addEventListener("change", scheduleEditableSnapshot);
   element.addEventListener("change", syncSourceFields);
   element.addEventListener("change", () => setPdfControls(currentPdf()));
+});
+
+chrome.storage.onChanged.addListener((changes, areaName) => {
+  if (areaName !== "local" || !changes[DRAFT_STATE_KEY]?.newValue) return;
+  const nextState = changes[DRAFT_STATE_KEY].newValue;
+  const previousPdfStatus = currentState?.pdf_status || "";
+  currentState = nextState;
+  setPdfControls(currentPdf());
+  if (nextState.pdf_status === "generating") {
+    setStatus("Generating PDF...");
+  } else if (previousPdfStatus === "generating" && nextState.pdf_status === "succeeded") {
+    setStatus("PDF generated.");
+  } else if (previousPdfStatus === "generating" && nextState.pdf_status === "failed") {
+    setStatus(nextState.pdf_error || "PDF generation failed.", "error");
+  }
 });
 
 async function initializePopup() {

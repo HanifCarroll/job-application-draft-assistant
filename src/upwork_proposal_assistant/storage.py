@@ -3,10 +3,16 @@ from __future__ import annotations
 from pathlib import Path
 import sqlite3
 
+from pydantic import ValidationError
+
 from upwork_proposal_assistant.models import DraftRequest, DraftResponse, DraftResult, StoredDraft
 
 
 EXPECTED_DRAFT_COLUMNS = {"id", "created_at", "request_json", "draft_json"}
+
+
+class DraftStoreValidationError(Exception):
+    pass
 
 
 class DraftStore:
@@ -52,7 +58,10 @@ class DraftStore:
             ).fetchone()
         if row is None:
             return None
-        draft = DraftResult.model_validate_json(str(row["draft_json"]))
+        try:
+            draft = DraftResult.model_validate_json(str(row["draft_json"]))
+        except ValidationError as exc:
+            raise DraftStoreValidationError(_invalid_draft_message(str(row["id"]))) from exc
         return DraftResponse(
             **draft.model_dump(),
             id=str(row["id"]),
@@ -67,12 +76,15 @@ class DraftStore:
             ).fetchone()
         if row is None:
             return None
-        return StoredDraft(
-            id=str(row["id"]),
-            created_at=str(row["created_at"]),
-            request=DraftRequest.model_validate_json(str(row["request_json"])),
-            draft=DraftResult.model_validate_json(str(row["draft_json"])),
-        )
+        try:
+            return StoredDraft(
+                id=str(row["id"]),
+                created_at=str(row["created_at"]),
+                request=DraftRequest.model_validate_json(str(row["request_json"])),
+                draft=DraftResult.model_validate_json(str(row["draft_json"])),
+            )
+        except ValidationError as exc:
+            raise DraftStoreValidationError(_invalid_draft_message(str(row["id"]))) from exc
 
     def _table_columns(self, conn: sqlite3.Connection, table: str) -> set[str]:
         rows = conn.execute(f"pragma table_info({table})").fetchall()
@@ -89,3 +101,7 @@ def make_stored_draft(
     draft: dict[str, object],
 ) -> StoredDraft:
     return StoredDraft(request=request, draft=DraftResult.model_validate(draft))
+
+
+def _invalid_draft_message(draft_id: str) -> str:
+    return f"Stored draft {draft_id} no longer matches the current draft schema. Regenerate the draft before exporting it."
