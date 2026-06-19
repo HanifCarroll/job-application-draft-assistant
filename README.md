@@ -221,13 +221,6 @@ python -m json.tool schemas/draft_response.schema.json >/dev/null
 
 The repository includes a GitHub Actions workflow that runs these checks on pushes and pull requests.
 
-## Notes For Maintainers
-
-- Keep the backend local by default. Do not add remote storage without a clear privacy model.
-- Keep generated user context and runtime draft data ignored.
-- Keep proposal generation auditable: new drafting behavior should preserve source refs for decisions and claims.
-- Do not add a Python content-validation pass after the second Codex `$humanizer` pass unless the architecture explicitly changes.
-
 ## License
 
 MIT
