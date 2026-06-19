@@ -8,10 +8,15 @@ const els = {
   settings: document.querySelector("#settings"),
   extract: document.querySelector("#extract"),
   draft: document.querySelector("#draft"),
+  markApplied: document.querySelector("#mark-applied"),
   copy: document.querySelector("#copy"),
   generatePdf: document.querySelector("#generate-pdf"),
   openPdfFolder: document.querySelector("#open-pdf-folder"),
   pdfStatus: document.querySelector("#pdf-status"),
+  applicationStatus: document.querySelector("#application-status"),
+  appliedIndicator: document.querySelector("#applied-indicator"),
+  appliedSummary: document.querySelector("#applied-summary"),
+  applicationsDashboardLink: document.querySelector("#applications-dashboard-link"),
   source: document.querySelector("#source"),
   sourceUrl: document.querySelector("#source-url"),
   title: document.querySelector("#title"),
@@ -20,7 +25,6 @@ const els = {
   description: document.querySelector("#description"),
   skills: document.querySelector("#skills"),
   employmentType: document.querySelector("#employment-type"),
-  remoteStatus: document.querySelector("#remote-status"),
   companyContext: document.querySelector("#company-context"),
   recruiterContext: document.querySelector("#recruiter-context"),
   responsibilities: document.querySelector("#responsibilities"),
@@ -39,8 +43,11 @@ const els = {
 };
 
 let currentState = null;
+let currentApplicationMatch = null;
 let pollToken = 0;
 let saveTimer = 0;
+let applicationLookupTimer = 0;
+let controlsBusy = false;
 
 const STAGE_LABELS = {
   queued: "Queued",
@@ -128,8 +135,10 @@ function sleep(ms) {
 }
 
 function setBusy(isBusy) {
+  controlsBusy = isBusy;
   els.draft.disabled = isBusy;
   els.extract.disabled = isBusy;
+  setApplicationControls();
 }
 
 function normalizeUrl(value) {
@@ -178,6 +187,81 @@ function clearDraftOutput() {
   els.pdfStatus.textContent = "";
 }
 
+function clearApplicationOutput() {
+  els.applicationStatus.textContent = "";
+  setAppliedIndicator(null);
+  setApplicationControls();
+}
+
+function setApplicationControls() {
+  els.markApplied.disabled = controlsBusy || !els.sourceUrl.value.trim();
+  els.markApplied.textContent = currentApplicationMatch ? "Refresh Log" : "Mark Applied";
+}
+
+function formatAppliedAt(value) {
+  if (!value) return "";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value.split("T", 1)[0];
+  return parsed.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+}
+
+function applicationSummary(application) {
+  const appliedAt = formatAppliedAt(application?.applied_at || "");
+  const role = application?.title || "this role";
+  const company = application?.company ? ` at ${application.company}` : "";
+  return `${appliedAt ? `${appliedAt} · ` : ""}${role}${company}`;
+}
+
+async function updateDashboardLink() {
+  const apiBase = await backendUrl();
+  els.applicationsDashboardLink.href = `${apiBase}/dashboard`;
+}
+
+function setAppliedIndicator(application) {
+  currentApplicationMatch = application || null;
+  if (!application) {
+    els.appliedIndicator.hidden = true;
+    els.appliedSummary.textContent = "";
+    setApplicationControls();
+    return;
+  }
+  els.appliedSummary.textContent = applicationSummary(application);
+  els.appliedIndicator.hidden = false;
+  setApplicationControls();
+}
+
+async function lookupApplication(sourceUrl) {
+  const response = await chrome.runtime.sendMessage({ type: "LOOKUP_APPLICATION", source_url: sourceUrl });
+  if (!response?.ok) throw new Error(response?.error || "Could not check application ledger.");
+  return response.application || null;
+}
+
+async function refreshApplicationLookup() {
+  const sourceUrl = els.sourceUrl.value.trim();
+  await updateDashboardLink();
+  if (!sourceUrl) {
+    setAppliedIndicator(null);
+    return;
+  }
+  const application = await lookupApplication(sourceUrl);
+  setAppliedIndicator(application);
+  if (application && !els.applicationStatus.textContent) {
+    els.applicationStatus.textContent = "Already in application ledger.";
+  }
+}
+
+function scheduleApplicationLookup(delay = 350) {
+  window.clearTimeout(applicationLookupTimer);
+  applicationLookupTimer = window.setTimeout(() => {
+    refreshApplicationLookup().catch((error) => {
+      if (!currentApplicationMatch) {
+        setAppliedIndicator(null);
+      }
+      els.applicationStatus.textContent = error.message || "Could not check application ledger.";
+    });
+  }, delay);
+}
+
 async function activeTab() {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (!tab?.id) throw new Error("No active tab found.");
@@ -206,6 +290,7 @@ async function captureActivePage({ statusText = "Review the current page snapsho
   currentState = null;
   clearProgress();
   clearDraftOutput();
+  clearApplicationOutput();
   fillOpportunity(opportunity);
   await persistEditableSnapshot();
   setStatus(statusText);
@@ -221,7 +306,6 @@ function fillOpportunity(opportunity) {
   els.description.value = opportunity.description || "";
   els.skills.value = (opportunity.skills || []).join(", ");
   els.employmentType.value = opportunity.employment_type || "";
-  els.remoteStatus.value = opportunity.remote_status || "";
   els.companyContext.value = opportunity.company_context || "";
   els.recruiterContext.value = opportunity.recruiter_or_client_context || opportunity.client_context || "";
   els.responsibilities.value = listToText(opportunity.responsibilities);
@@ -230,6 +314,8 @@ function fillOpportunity(opportunity) {
   els.questions.value = listToText(opportunity.application_questions);
   els.warnings.value = listToText(opportunity.extraction_warnings);
   syncSourceFields();
+  setApplicationControls();
+  scheduleApplicationLookup(0);
   if (opportunity.source === "upwork") {
     els.draftType.value = "upwork_proposal";
   } else {
@@ -262,7 +348,6 @@ function readRequest() {
     company: els.company.value.trim(),
     location: els.location.value.trim(),
     employment_type: els.employmentType.value.trim(),
-    remote_status: els.remoteStatus.value.trim(),
     description: els.description.value.trim(),
     responsibilities,
     requirements,
@@ -327,6 +412,10 @@ function currentDraftId() {
   return currentState?.result?.id || currentState?.job?.result?.id || "";
 }
 
+function currentDraftJobId() {
+  return currentState?.job_id || currentState?.job?.id || "";
+}
+
 function currentPdf() {
   const pdf = currentState?.pdf;
   if (!pdf || pdf.draft_id !== currentDraftId()) return null;
@@ -372,6 +461,9 @@ async function persistEditableSnapshot() {
     pdf: currentPdf(),
     pdf_status: currentState?.pdf_status || null,
     pdf_error: currentState?.pdf_error || null,
+    application: currentState?.application || null,
+    application_status: els.applicationStatus.textContent || null,
+    application_error: currentState?.application_error || null,
     error: null,
   });
 }
@@ -452,6 +544,9 @@ async function finishDraftJob(jobId) {
     pdf: null,
     pdf_status: null,
     pdf_error: null,
+    application: currentState?.application || null,
+    application_status: els.applicationStatus.textContent || null,
+    application_error: currentState?.application_error || null,
     error: null,
     started_at: currentState?.started_at,
   });
@@ -467,8 +562,12 @@ async function restoreDraftState(stateToRestore = null) {
   if (state.request) fillRequest(state.request);
   if (state.draft_text) els.proposal.value = state.draft_text;
   if (state.audit) els.audit.textContent = state.audit;
+  els.applicationStatus.textContent = state.application_status || "";
+  setAppliedIndicator(state.application || null);
   els.copy.disabled = !els.proposal.value;
   setPdfControls(state.pdf || null);
+  setApplicationControls();
+  scheduleApplicationLookup(0);
 
   if (state.phase === "succeeded" && state.result && state.job) {
     renderDraft(state.job, state.result);
@@ -558,6 +657,52 @@ els.draft.addEventListener("click", async () => {
   }
 });
 
+function buildApplicationLogRequest() {
+  const request = readRequest();
+  return {
+    opportunity: request.opportunity,
+    applied_at: nowIso(),
+    draft_id: currentDraftId(),
+    draft_job_id: currentDraftJobId(),
+    detected_by: "manual",
+    warnings: [],
+  };
+}
+
+async function logApplication(request) {
+  const response = await chrome.runtime.sendMessage({ type: "LOG_APPLICATION", request });
+  if (!response?.ok) throw new Error(response?.error || "Could not log application.");
+  return response;
+}
+
+els.markApplied.addEventListener("click", async () => {
+  try {
+    els.markApplied.disabled = true;
+    els.applicationStatus.textContent = "Logging application...";
+    const response = await logApplication(buildApplicationLogRequest());
+    const applicationStatus = response.queued ? "Application log queued." : "Application logged.";
+    els.applicationStatus.textContent = applicationStatus;
+    if (response.application) {
+      setAppliedIndicator(response.application);
+    }
+    await patchDraftState({
+      application: response.application || currentState?.application || null,
+      application_status: applicationStatus,
+      application_error: response.error || null,
+    });
+    setStatus(applicationStatus);
+  } catch (error) {
+    els.applicationStatus.textContent = error.message || "Could not log application.";
+    await patchDraftState({
+      application_status: els.applicationStatus.textContent,
+      application_error: error.message || String(error),
+    }).catch(() => {});
+    setStatus(error.message, "error");
+  } finally {
+    setApplicationControls();
+  }
+});
+
 async function startPdfExport(draftId) {
   const response = await chrome.runtime.sendMessage({ type: "START_PDF_EXPORT", draft_id: draftId });
   if (!response?.ok) throw new Error(response?.error || "Could not generate PDF.");
@@ -619,13 +764,21 @@ els.settings.addEventListener("click", () => {
   chrome.runtime.openOptionsPage();
 });
 
-[els.source, els.sourceUrl, els.title, els.company, els.location, els.description, els.skills, els.employmentType, els.remoteStatus, els.companyContext, els.recruiterContext, els.responsibilities, els.requirements, els.niceToHaves, els.questions, els.draftType, els.notes].forEach((element) => {
+[els.source, els.sourceUrl, els.title, els.company, els.location, els.description, els.skills, els.employmentType, els.companyContext, els.recruiterContext, els.responsibilities, els.requirements, els.niceToHaves, els.questions, els.draftType, els.notes].forEach((element) => {
   element.addEventListener("input", scheduleEditableSnapshot);
   element.addEventListener("input", syncSourceFields);
   element.addEventListener("input", () => setPdfControls(currentPdf()));
+  element.addEventListener("input", () => setApplicationControls());
+  element.addEventListener("input", () => {
+    if (element === els.sourceUrl) scheduleApplicationLookup();
+  });
   element.addEventListener("change", scheduleEditableSnapshot);
   element.addEventListener("change", syncSourceFields);
   element.addEventListener("change", () => setPdfControls(currentPdf()));
+  element.addEventListener("change", () => setApplicationControls());
+  element.addEventListener("change", () => {
+    if (element === els.sourceUrl) scheduleApplicationLookup(0);
+  });
 });
 
 chrome.storage.onChanged.addListener((changes, areaName) => {
@@ -655,6 +808,7 @@ async function initializePopup() {
     currentState = null;
     clearProgress();
     clearDraftOutput();
+    clearApplicationOutput();
     fillOpportunity(opportunity);
     await persistEditableSnapshot();
     setStatus("Review the current page snapshot before drafting.");

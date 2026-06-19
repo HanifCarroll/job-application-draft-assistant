@@ -86,6 +86,32 @@ class DraftStore:
         except ValidationError as exc:
             raise DraftStoreValidationError(_invalid_draft_message(str(row["id"]))) from exc
 
+    def list_stored_drafts(self, *, skip_invalid: bool = False) -> list[StoredDraft]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                """
+                select id, created_at, request_json, draft_json
+                from drafts
+                order by created_at desc
+                """
+            ).fetchall()
+        drafts = []
+        for row in rows:
+            try:
+                drafts.append(
+                    StoredDraft(
+                        id=str(row["id"]),
+                        created_at=str(row["created_at"]),
+                        request=DraftRequest.model_validate_json(str(row["request_json"])),
+                        draft=DraftResult.model_validate_json(str(row["draft_json"])),
+                    )
+                )
+            except ValidationError as exc:
+                if skip_invalid:
+                    continue
+                raise DraftStoreValidationError(_invalid_draft_message(str(row["id"]))) from exc
+        return drafts
+
     def _table_columns(self, conn: sqlite3.Connection, table: str) -> set[str]:
         rows = conn.execute(f"pragma table_info({table})").fetchall()
         return {str(row["name"]) for row in rows}

@@ -8,6 +8,8 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 DraftType = Literal["cover_letter", "upwork_proposal"]
+ApplicationStatus = Literal["applied"]
+ApplicationDetectedBy = Literal["manual", "platform_confirmation", "csv_import"]
 
 
 class OpportunitySnapshot(BaseModel):
@@ -20,7 +22,6 @@ class OpportunitySnapshot(BaseModel):
     company: str = ""
     location: str = ""
     employment_type: str = ""
-    remote_status: str = ""
     description: str = ""
     responsibilities: list[str] = Field(default_factory=list)
     requirements: list[str] = Field(default_factory=list)
@@ -37,7 +38,7 @@ class OpportunitySnapshot(BaseModel):
         if not isinstance(value, dict):
             return value
         cleaned = dict(value)
-        for field in ("raw_text", "source_text", "extraction_confidence", "compensation"):
+        for field in ("raw_text", "source_text", "extraction_confidence", "compensation", "remote_status"):
             cleaned.pop(field, None)
         return cleaned
 
@@ -48,7 +49,6 @@ class OpportunitySnapshot(BaseModel):
                 self.company,
                 self.location,
                 self.employment_type,
-                self.remote_status,
                 self.description,
                 " ".join(self.responsibilities),
                 " ".join(self.requirements),
@@ -201,6 +201,53 @@ class StoredDraft(BaseModel):
 class DraftResponse(DraftResult):
     id: str
     created_at: str
+
+
+class DraftLookupResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    matched: bool
+    draft: DraftResponse | None = None
+
+
+class ApplicationLogRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    opportunity: OpportunitySnapshot
+    status: ApplicationStatus = "applied"
+    applied_at: str = Field(default_factory=lambda: datetime.now(UTC).isoformat())
+    draft_id: str = ""
+    draft_job_id: str = ""
+    detected_by: ApplicationDetectedBy = "manual"
+    warnings: list[str] = Field(default_factory=list)
+
+
+class ApplicationRecord(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: str
+    status: ApplicationStatus
+    applied_at: str
+    source: str
+    source_url: str
+    normalized_source_url: str = ""
+    title: str
+    company: str
+    location: str = ""
+    draft_id: str = ""
+    draft_job_id: str = ""
+    opportunity: OpportunitySnapshot
+    detected_by: ApplicationDetectedBy
+    warnings: list[str] = Field(default_factory=list)
+    created_at: str
+    updated_at: str
+
+
+class ApplicationLookupResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    matched: bool
+    application: ApplicationRecord | None = None
 
 
 class StageTiming(BaseModel):

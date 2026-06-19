@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 
@@ -38,6 +39,8 @@ def test_extension_has_no_stale_compatibility_path() -> None:
     assert "source-text" not in popup
     assert "extraction_confidence" not in content_script
     assert "extraction_confidence" not in popup
+    assert "remote_status" not in content_script
+    assert "remote-status" not in popup
     assert "Compensation" not in popup
     assert 'id="budget"' not in popup
     assert "salaryFromJsonLd" not in content_script
@@ -84,9 +87,11 @@ def test_popup_uses_unified_source_aware_snapshot_form() -> None:
     popup_js = (REPO_ROOT / "extension" / "popup.js").read_text(encoding="utf-8")
 
     for field_id in [
+        "applied-indicator",
+        "applied-summary",
+        "applications-dashboard-link",
         "source-url",
         "employment-type",
-        "remote-status",
         "company-context",
         "recruiter-context",
         "responsibilities",
@@ -121,6 +126,11 @@ def test_popup_uses_unified_source_aware_snapshot_form() -> None:
     assert "extraction_confidence" not in popup_js
     assert "source_text" not in popup_js
     assert "compensation:" not in popup_js
+    assert "remote_status" not in popup_js
+    assert "remote-status" not in popup_html
+    assert "LOOKUP_APPLICATION" in popup_js
+    assert "refreshApplicationLookup" in popup_js
+    assert "Already in application ledger." in popup_js
 
 
 def test_popup_wires_cover_letter_pdf_controls() -> None:
@@ -140,3 +150,48 @@ def test_popup_wires_cover_letter_pdf_controls() -> None:
     assert "/pdf/reveal`" in popup_js
     assert "draftType.value === \"cover_letter\"" in popup_js
     assert "setPdfControls" in popup_js
+
+
+def test_extension_wires_application_logging() -> None:
+    manifest = json.loads((REPO_ROOT / "extension" / "manifest.json").read_text(encoding="utf-8"))
+    popup_html = (REPO_ROOT / "extension" / "popup.html").read_text(encoding="utf-8")
+    popup_js = (REPO_ROOT / "extension" / "popup.js").read_text(encoding="utf-8")
+    background_js = (REPO_ROOT / "extension" / "background.js").read_text(encoding="utf-8")
+    application_logger_js = (REPO_ROOT / "extension" / "application_logger.js").read_text(encoding="utf-8")
+    dice_wizard_assistant_js = (REPO_ROOT / "extension" / "dice_wizard_assistant.js").read_text(encoding="utf-8")
+
+    scripts = manifest["content_scripts"][0]["js"]
+    assert scripts == ["content_script.js", "application_logger.js", "dice_wizard_assistant.js"]
+    assert "https://*.indeed.com/*" in manifest["host_permissions"]
+    assert 'id="mark-applied"' in popup_html
+    assert "LOG_APPLICATION" in popup_js
+    assert 'detected_by: "manual"' in popup_js
+    assert "APPLICATION_CAPTURE_PENDING" in background_js
+    assert "APPLICATION_CONFIRMED" in background_js
+    assert "LOOKUP_APPLICATION" in background_js
+    assert "Backend offline. Start it with: uv --no-config run jada serve" in background_js
+    assert "userErrorMessage" in background_js
+    assert "LOOKUP_DRAFT" in background_js
+    assert "GET_DRAFT_JOB" in background_js
+    assert "DOWNLOAD_PDF" in background_js
+    assert "APPLICATION_QUEUE_KEY" in background_js
+    assert "/applications" in background_js
+    assert "/applications/lookup" in background_js
+    assert "job-application-ledger-badge" in application_logger_js
+    assert "LOOKUP_APPLICATION" in application_logger_js
+    assert "Already applied" in application_logger_js
+    assert "remote_status" not in application_logger_js
+    assert "submitSelectors" in application_logger_js
+    assert "confirmationSelectors" in application_logger_js
+    assert 'captureOpportunity: diceWizardOpportunity' in application_logger_js
+    assert '/^\\/job-applications\\/([^/]+)\\/wizard/' in application_logger_js
+    assert '/\\/job-applications\\/[^/]+\\/wizard\\/success\\/?$/' in application_logger_js
+    assert 'a[href="/job-detail/${wizardMatch[1]}"]' in application_logger_js
+    assert "document.body" not in application_logger_js
+
+    assert "job-application-dice-cover-letter-panel" in dice_wizard_assistant_js
+    assert "START_DRAFT_JOB" in dice_wizard_assistant_js
+    assert "START_PDF_EXPORT" in dice_wizard_assistant_js
+    assert "LOOKUP_DRAFT" in dice_wizard_assistant_js
+    assert "DOWNLOAD_PDF" in dice_wizard_assistant_js
+    assert "input.files = transfer.files" in dice_wizard_assistant_js

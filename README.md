@@ -17,6 +17,9 @@ This is a personal local tool shared as-is for people who want to use or adapt i
 - Runs one Codex pass over the full portfolio context to choose strategy and generate the draft.
 - Returns structured audit data for decisions, claims, source evidence, and warnings.
 - Persists draft jobs in SQLite so long Codex runs can be polled.
+- Logs applied jobs in SQLite, including one-time CSV migration from the old spreadsheet.
+- Provides a local dashboard for reviewing the SQLite application ledger.
+- Shows an already-applied indicator in the extension popup and supported job pages when the current URL is already in the ledger.
 - Keeps popup state in `chrome.storage.local`, so closing and reopening the popup resumes an active job.
 - Provides a Chrome options page for configuring the local backend URL.
 - Drafts cover letters and Upwork proposals.
@@ -33,6 +36,7 @@ Chrome popup
   -> codex exec draft pass sees profile, all offers, all projects, and the opportunity
   -> SQLite stores request and draft JSON
   -> popup polls job status and displays draft + audit trail
+  -> popup or platform confirmation logs applied jobs to SQLite
 ```
 
 ## Requirements
@@ -75,6 +79,8 @@ The extension uses site adapters that convert each page into the same normalized
 | Robert Half | Search result pages with the selected job detail card. |
 
 The extension reads the job page you are viewing. It does not crawl job boards or submit applications.
+
+Application logging is conservative. The popup provides a manual `Mark Applied` action for the current job snapshot. A separate content script also records a pending snapshot when a known platform submit control is clicked, then logs the application only after a platform-specific confirmation selector or confirmation URL is observed. Unknown application flows are not guessed from page-wide text.
 
 ## Configuration
 
@@ -172,6 +178,10 @@ Useful local endpoints:
 - `POST /context/reindex`: rebuild context from the configured source.
 - `POST /draft-jobs`: create an async draft job.
 - `GET /draft-jobs/{job_id}`: poll job status and result.
+- `POST /applications`: log an applied job. Reuses an existing row when the normalized source URL already exists.
+- `GET /applications`: list logged applications.
+- `GET /applications/lookup?source_url=...`: check whether a normalized source URL already exists in the application ledger.
+- `GET /dashboard`: browser dashboard for the application ledger.
 - `POST /draft`: synchronous draft endpoint for debugging.
 - `GET /drafts/{draft_id}`: fetch a stored completed draft.
 - `POST /drafts/{draft_id}/pdf`: generate a PDF for a stored cover letter draft.
@@ -207,6 +217,31 @@ Every draft response includes:
 
 The backend stores the original request and one draft JSON payload. The draft includes role classification, application strategy, selected and rejected projects, decisions, claims, and warnings. That makes it possible to trace application language back to the job snapshot, personal context, or user notes that caused it.
 
+## Application Ledger
+
+Applications are stored in the same SQLite database as drafts. Rows are deduplicated by normalized source URL so importing historical data and later logging the same job does not create duplicates. The first `applied_at` value is preserved; later logs can attach draft IDs or refresh title, company, and location from a better page snapshot.
+
+Import a Numbers-exported CSV with the columns `Role`, `Company`, `Link`, and `Date Sent`:
+
+```bash
+uv run jada applications import "/path/to/Job Search.csv"
+```
+
+List or export the SQLite ledger:
+
+```bash
+uv run jada applications list --limit 25
+uv run jada applications export --output applications.csv
+```
+
+View the local dashboard while the backend is running:
+
+```text
+http://127.0.0.1:8787/dashboard
+```
+
+The extension checks the current job source URL against `/applications/lookup`. If the normalized URL is already in SQLite, the popup shows an already-applied status and supported job pages show a small already-applied badge.
+
 ## PDF Cover Letters
 
 PDF export is available for completed `cover_letter` drafts. The backend renders the saved `draft_text` without rewriting it, adds a restrained resume-derived letterhead, and saves the file under `JOB_APPLICATION_DRAFT_PDF_OUTPUT_DIR`.
@@ -222,7 +257,8 @@ This is a local-first tool, but it does store sensitive working data.
 Stored locally:
 
 - Chrome extension state in `chrome.storage.local`: current request, job id, progress, draft text, and audit text.
-- SQLite data in `.runtime/drafts.db`: job details, user notes, draft text, and audit trail.
+- Chrome extension queued application logs in `chrome.storage.local` when the backend is unavailable.
+- SQLite data in `.runtime/drafts.db`: job details, user notes, draft text, audit trail, and applied-job ledger.
 - Generated cover letter PDFs in `.runtime/cover-letters/` by default.
 - Codex run workspaces in `.runtime/codex-runs/`: final JSON messages from individual Codex runs.
 - Generated context in `data/context/`: profile, offers, and project proof points derived from your configured context source.

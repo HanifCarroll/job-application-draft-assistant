@@ -104,11 +104,6 @@
     return labels[normalized] || clean(value);
   }
 
-  function remoteStatusFromJsonLd(job) {
-    if (job?.jobLocationType === "TELECOMMUTE") return "Remote";
-    return "";
-  }
-
   function upworkSkills(root) {
     const domSkills = Array.from(
       root.querySelectorAll(
@@ -166,7 +161,6 @@
       company: clean(values.company),
       location: clean(values.location),
       employment_type: clean(values.employment_type),
-      remote_status: clean(values.remote_status),
       description,
       responsibilities: values.responsibilities || [],
       requirements: values.requirements || [],
@@ -242,7 +236,6 @@
         company,
         location: locationFromJsonLd(job) || firstText(['[data-testid="locationTypeBadge"]']),
         employment_type: employmentTypeFromJsonLd(job),
-        remote_status: remoteStatusFromJsonLd(job),
         description,
         skills,
         company_context: diceCompanyContext(company),
@@ -284,7 +277,6 @@
         company,
         location: locationText,
         employment_type: "",
-        remote_status: "",
         description,
         skills: [],
         extraction_warnings: description ? [] : ["ZipRecruiter job description element was not found; review the snapshot before drafting."],
@@ -305,7 +297,6 @@
         company: "Robert Half",
         location,
         employment_type: "",
-        remote_status: "",
         description,
         requirements: requirementsText ? [requirementsText] : [],
         skills: [],

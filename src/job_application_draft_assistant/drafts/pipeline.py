@@ -16,8 +16,8 @@ from job_application_draft_assistant.models import (
     StageTiming,
     StoredDraft,
 )
-from job_application_draft_assistant.prompts import build_draft_prompt
-from job_application_draft_assistant.storage import DraftStore, make_stored_draft
+from job_application_draft_assistant.drafts.prompts import build_draft_prompt
+from job_application_draft_assistant.drafts.storage import DraftStore, make_stored_draft
 
 
 StageCallback = Callable[[DraftJobStage], None]

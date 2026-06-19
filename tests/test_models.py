@@ -16,14 +16,17 @@ def test_opportunity_snapshot_discards_obsolete_freeform_fields() -> None:
             "raw_text": "Old page-wide text should not reach prompts.",
             "source_text": "Flattened source text should not reach prompts.",
             "extraction_confidence": "high",
+            "remote_status": "Remote",
         }
     )
 
     assert "raw_text" not in snapshot.model_dump()
     assert "source_text" not in snapshot.model_dump()
     assert "extraction_confidence" not in snapshot.model_dump()
+    assert "remote_status" not in snapshot.model_dump()
     assert "Old page-wide text" not in snapshot.search_text()
     assert "Flattened source text" not in snapshot.search_text()
+    assert "Remote" not in snapshot.search_text()
 
 
 def test_opportunity_snapshot_rejects_unknown_fields() -> None:

@@ -35,8 +35,8 @@
           <input id="source" type="text" autocomplete="off" />
         </label>
         <label>
-          Remote status
-          <input id="remote-status" type="text" autocomplete="off" />
+          Employment type
+          <input id="employment-type" type="text" autocomplete="off" />
         </label>
       </div>
 
@@ -44,6 +44,14 @@
         Source URL
         <input id="source-url" type="text" autocomplete="off" />
       </label>
+
+      <div id="applied-indicator" class="applied-indicator" hidden>
+        <div>
+          <strong>Already applied</strong>
+          <span id="applied-summary"></span>
+        </div>
+        <a id="applications-dashboard-link" href="http://127.0.0.1:8787/dashboard" target="_blank" rel="noreferrer">Dashboard</a>
+      </div>
 
       <label>
         Role title
@@ -61,16 +69,10 @@
         </label>
       </div>
 
-      <div class="grid">
-        <label>
-          Employment type
-          <input id="employment-type" type="text" autocomplete="off" />
-        </label>
-        <label>
-          Skills
-          <input id="skills" type="text" autocomplete="off" />
-        </label>
-      </div>
+      <label>
+        Skills
+        <input id="skills" type="text" autocomplete="off" />
+      </label>
 
       <label>
         Description
@@ -126,6 +128,10 @@
       </label>
 
       <button id="draft" class="primary" type="button">Draft with Codex</button>
+      <div class="application-actions">
+        <button id="mark-applied" type="button" disabled>Mark Applied</button>
+        <p id="application-status" class="meta-status"></p>
+      </div>
 
       <section class="result" aria-live="polite">
         <div class="result-header">

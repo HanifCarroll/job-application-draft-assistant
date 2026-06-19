@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 from job_application_draft_assistant.models import DraftRequest, UpworkProject
-from job_application_draft_assistant.storage import DraftStore, DraftStoreValidationError, make_stored_draft
+from job_application_draft_assistant.drafts.storage import DraftStore, DraftStoreValidationError, make_stored_draft
 
 
 def test_store_round_trips_draft_response(tmp_path: Path) -> None:
@@ -80,3 +80,8 @@ def test_store_reports_obsolete_stored_draft_schema(tmp_path: Path) -> None:
 
     with pytest.raises(DraftStoreValidationError, match="Regenerate the draft"):
         store.get_stored_draft(draft.id)
+
+    with pytest.raises(DraftStoreValidationError, match="Regenerate the draft"):
+        store.list_stored_drafts()
+
+    assert store.list_stored_drafts(skip_invalid=True) == []

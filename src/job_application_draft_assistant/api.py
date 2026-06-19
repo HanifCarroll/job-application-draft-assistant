@@ -1,26 +1,36 @@
 from __future__ import annotations
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 
+from job_application_draft_assistant.applications.dashboard import (
+    filter_application_records,
+    render_application_dashboard,
+    sort_application_records,
+)
+from job_application_draft_assistant.applications.store import ApplicationStore, ApplicationStoreValidationError, normalize_source_url
 from job_application_draft_assistant.codex_provider import CodexProvider, CodexProviderError
 from job_application_draft_assistant.config import AppPaths
 from job_application_draft_assistant.context.indexer import build_context, ensure_context
-from job_application_draft_assistant.draft_pipeline import run_draft_pipeline
-from job_application_draft_assistant.job_store import DraftJobStore
-from job_application_draft_assistant.jobs import DraftJobRunner, build_job_status
+from job_application_draft_assistant.drafts.pipeline import run_draft_pipeline
+from job_application_draft_assistant.drafts.job_store import DraftJobStore
+from job_application_draft_assistant.drafts.jobs import DraftJobRunner, build_job_status
 from job_application_draft_assistant.models import (
     DraftJobCreated,
     DraftJobStatus,
+    DraftLookupResponse,
     DraftRequest,
     DraftResponse,
+    ApplicationLookupResponse,
+    ApplicationLogRequest,
+    ApplicationRecord,
     PdfExportResponse,
     ReindexResponse,
     RevealPdfResponse,
 )
-from job_application_draft_assistant.pdf_export import PdfExportError, export_cover_letter_pdf, reveal_pdf
-from job_application_draft_assistant.storage import DraftStore, DraftStoreValidationError
+from job_application_draft_assistant.drafts.pdf_export import PdfExportError, export_cover_letter_pdf, reveal_pdf
+from job_application_draft_assistant.drafts.storage import DraftStore, DraftStoreValidationError
 
 
 def create_app() -> FastAPI:
@@ -30,6 +40,8 @@ def create_app() -> FastAPI:
     store.init()
     job_store = DraftJobStore(paths.db_path)
     job_store.init()
+    application_store = ApplicationStore(paths.db_path)
+    application_store.init()
     job_store.fail_active("Server restarted before this draft job completed.")
     context = ensure_context(paths.portfolio_root, paths.context_dir)
     codex = CodexProvider(paths)
@@ -61,6 +73,40 @@ def create_app() -> FastAPI:
             "max_workers": paths.max_workers,
         }
 
+    @app.get("/", include_in_schema=False)
+    def root() -> RedirectResponse:
+        return RedirectResponse(url="/dashboard")
+
+    @app.get("/dashboard", response_class=HTMLResponse)
+    def dashboard(
+        q: str = "",
+        source: str = "",
+        limit: int = Query(500, ge=1, le=1000),
+        sort: str = "applied",
+        direction: str = "desc",
+    ) -> HTMLResponse:
+        try:
+            all_records = application_store.list(limit=0)
+            draft_ids_by_source_url = _draft_ids_by_source_url(store)
+        except ApplicationStoreValidationError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        except DraftStoreValidationError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        filtered_records = filter_application_records(all_records, query=q, source=source)
+        visible_records = sort_application_records(filtered_records, sort=sort, direction=direction)[:limit]
+        return HTMLResponse(
+            render_application_dashboard(
+                records=visible_records,
+                all_records=all_records,
+                query=q,
+                source=source,
+                limit=limit,
+                sort=sort,
+                direction=direction,
+                draft_ids_by_source_url=draft_ids_by_source_url,
+            )
+        )
+
     @app.post("/context/reindex")
     def reindex() -> ReindexResponse:
         refreshed = build_context(paths.portfolio_root, paths.context_dir)
@@ -84,6 +130,31 @@ def create_app() -> FastAPI:
     def create_draft_job(request: DraftRequest) -> DraftJobCreated:
         return runner.enqueue(request)
 
+    @app.post("/applications")
+    def log_application(request: ApplicationLogRequest) -> ApplicationRecord:
+        try:
+            return application_store.log(request)
+        except ApplicationStoreValidationError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    @app.get("/applications/lookup")
+    def lookup_application(source_url: str = Query(..., min_length=1)) -> ApplicationLookupResponse:
+        try:
+            application = application_store.get_by_source_url(source_url)
+        except ApplicationStoreValidationError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        return ApplicationLookupResponse(matched=application is not None, application=application)
+
+    @app.get("/applications")
+    def list_applications(
+        limit: int = Query(100, ge=1, le=1000),
+        source: str | None = None,
+    ) -> list[ApplicationRecord]:
+        try:
+            return application_store.list(limit=limit, source=source)
+        except ApplicationStoreValidationError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
     @app.get("/draft-jobs/{job_id}")
     def get_draft_job(job_id: str) -> DraftJobStatus:
         record = job_store.get(job_id)
@@ -93,6 +164,14 @@ def create_app() -> FastAPI:
             return build_job_status(record, store)
         except DraftStoreValidationError as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    @app.get("/drafts/lookup")
+    def lookup_draft(source_url: str = Query(..., min_length=1)) -> DraftLookupResponse:
+        try:
+            draft = _latest_draft_response_by_source_url(store, source_url)
+        except DraftStoreValidationError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        return DraftLookupResponse(matched=draft is not None, draft=draft)
 
     @app.get("/drafts/{draft_id}")
     def get_draft(draft_id: str) -> DraftResponse:
@@ -151,3 +230,25 @@ def create_app() -> FastAPI:
         return RevealPdfResponse(draft_id=draft_id, pdf_path=exported.pdf_path, opened=opened)
 
     return app
+
+
+def _draft_ids_by_source_url(store: DraftStore) -> dict[str, str]:
+    draft_ids = {}
+    for draft in store.list_stored_drafts(skip_invalid=True):
+        normalized = normalize_source_url(draft.request.opportunity_snapshot().source_url)
+        if normalized and normalized not in draft_ids:
+            draft_ids[normalized] = draft.id
+    return draft_ids
+
+
+def _latest_draft_response_by_source_url(store: DraftStore, source_url: str) -> DraftResponse | None:
+    normalized_source_url = normalize_source_url(source_url)
+    if not normalized_source_url:
+        return None
+    for draft in store.list_stored_drafts(skip_invalid=True):
+        draft_source_url = normalize_source_url(draft.request.opportunity_snapshot().source_url)
+        if draft_source_url == normalized_source_url:
+            response = store.get_response(draft.id)
+            if response is not None:
+                return response
+    return None
