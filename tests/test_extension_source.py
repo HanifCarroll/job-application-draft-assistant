@@ -82,6 +82,44 @@ def test_dice_extraction_does_not_send_page_wide_text() -> None:
     assert "Mapbox or ESRI" not in dice_block
 
 
+def test_ziprecruiter_extraction_uses_selected_right_pane_contract() -> None:
+    content_script = (REPO_ROOT / "extension" / "content_script.js").read_text(encoding="utf-8")
+    zip_block = content_script.split("const zipRecruiterAdapter = {", 1)[1].split("const robertHalfAdapter = {", 1)[0]
+
+    assert "zipRecruiterRightPaneOpportunity()" in zip_block
+    assert "zipRecruiterReviewDialogOpportunity()" in zip_block
+    assert "zipRecruiterEmptyOpportunity()" in zip_block
+    assert '[data-testid="right-pane"]' in content_script
+    assert '[data-testid="job-details-scroll-container"]' in content_script
+    assert '[data-testid="company-data"]' in content_script
+    assert 'a[href^="/co/"]' in content_script
+    assert 'clean(node.textContent) === "Job description"' in content_script
+    assert 'url.searchParams.get("lk")' in content_script
+    assert 'sourceUrl.searchParams.set("lk", listingKey)' in content_script
+    assert "job-card-title" not in zip_block
+    assert "job-card-company" not in zip_block
+    assert "job-card-location" not in zip_block
+
+
+def test_roberthalf_extraction_uses_selected_detail_card_contract() -> None:
+    content_script = (REPO_ROOT / "extension" / "content_script.js").read_text(encoding="utf-8")
+    roberthalf_block = content_script.split("const robertHalfAdapter = {", 1)[1].split("function proposalJobDetailsRoot", 1)[0]
+
+    assert "robertHalfSelectedDetails()" in roberthalf_block
+    assert 'rhcl-job-card[data-testid="job-details"]' in content_script
+    assert 'rhcl-job-card[selected="true"]' in content_script
+    assert 'details?.getAttribute("headline")' in roberthalf_block
+    assert 'details?.getAttribute("destination")' in content_script
+    assert 'details?.getAttribute("worksite")' in content_script
+    assert 'details?.getAttribute("location")' in content_script
+    assert 'details?.getAttribute("type")' in roberthalf_block
+    assert 'details?.getAttribute("copy")' in content_script
+    assert '[data-testid="job-details-description"]' in content_script
+    assert '[data-testid="job-details-requirements"]' in roberthalf_block
+    assert 'a[href*="/us/en/job/"].rhcl-typography--display5' not in roberthalf_block
+    assert '[data-testid="job-details-location"]' not in roberthalf_block
+
+
 def test_popup_uses_unified_source_aware_snapshot_form() -> None:
     popup_html = (REPO_ROOT / "extension" / "popup.html").read_text(encoding="utf-8")
     popup_js = (REPO_ROOT / "extension" / "popup.js").read_text(encoding="utf-8")
@@ -182,12 +220,34 @@ def test_extension_wires_application_logging() -> None:
     assert "LOOKUP_APPLICATION" in application_logger_js
     assert "Already applied" in application_logger_js
     assert "Application recorded" in application_logger_js
-    assert "recordedBadgeHref === location.href" in application_logger_js
+    assert "visibleBadgeSourceUrl === sourceUrl" in application_logger_js
+    assert "badge.dataset.sourceUrl = badgeSourceUrl" in application_logger_js
+    assert 'setLedgerBadge(await lookupApplication(sourceUrl), { sourceUrl })' in application_logger_js
+    assert "recordedBadge" not in application_logger_js
     assert "remote_status" not in application_logger_js
     assert "submitSelectors" in application_logger_js
     assert "confirmationSelectors" in application_logger_js
+    assert "submitButtons" in application_logger_js
+    assert "event.composedPath" in application_logger_js
+    assert "matchesSubmitElement" in application_logger_js
+    assert "scheduleLedgerBadgeRefresh(300, { force: true })" in application_logger_js
+    assert "attributeFilter" in application_logger_js
+    for attribute_name in ["applied", "selected", "destination", "headline", "cta-type"]:
+        assert f'"{attribute_name}"' in application_logger_js
     assert "(rule.confirmationSelectors || []).some" in application_logger_js
     assert "(rule.confirmationPathPatterns || []).some" in application_logger_js
+    assert 'button[aria-label="1-Click Apply"]' in application_logger_js
+    assert 'button[aria-label="Quick Apply"]' in application_logger_js
+    assert '{ selector: \'button[type="button"]\', text: "Submit" }' in application_logger_js
+    assert "Your application was submitted!" in application_logger_js
+    assert 'button[aria-label="Applied"]' in application_logger_js
+    assert "Congrats! You've successfully applied and created a profile!" not in application_logger_js
+    assert 'button[aria-label="Quick apply"]' in application_logger_js
+    assert 'rhcl-button[component-title="Quick apply"]' in application_logger_js
+    assert 'rhcl-job-card[data-testid="job-details"][cta-type="quick-apply"]' in application_logger_js
+    assert 'rhcl-job-card[data-testid="job-details"][applied=""]' in application_logger_js
+    assert 'rhcl-job-card[data-testid="job-details"][applied="true"]' in application_logger_js
+    assert 'rhcl-job-card[selected="true"][applied=""]' in application_logger_js
     assert 'captureOpportunity: diceWizardOpportunity' in application_logger_js
     assert '/^\\/job-applications\\/([^/]+)\\/wizard(?:\\/success)?\\/?$/' in application_logger_js
     assert '/\\/job-applications\\/[^/]+\\/wizard\\/success\\/?$/' in application_logger_js

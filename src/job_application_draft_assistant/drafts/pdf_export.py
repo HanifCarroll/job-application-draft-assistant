@@ -60,8 +60,7 @@ def export_cover_letter_pdf(stored: StoredDraft, output_dir: Path, resume_pdf_pa
 def cover_letter_pdf_path(stored: StoredDraft, output_dir: Path) -> Path:
     opportunity = stored.request.opportunity_snapshot()
     company = _filename_part(opportunity.company, "Company")
-    title = _filename_part(opportunity.title, "Role")
-    name = f"Hanif-Carroll-Cover-Letter-{company}-{title}.pdf"
+    name = f"Hanif-Carroll-Cover-Letter-{company}.pdf"
     return output_dir / name
 
 

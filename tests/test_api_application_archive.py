@@ -47,7 +47,7 @@ def test_archive_cover_letter_for_application_moves_pdf_for_record_draft(tmp_pat
         AppPaths(pdf_output_dir=output_dir, pdf_archive_dir=archive_dir),
     )
 
-    archived_path = archive_dir / f"Hanif-Carroll-Cover-Letter-Acme-Systems-Software-Engineer-{stored.id[:8]}.pdf"
+    archived_path = archive_dir / f"Hanif-Carroll-Cover-Letter-Acme-Systems-{stored.id[:8]}.pdf"
     assert archived_path.read_bytes() == b"%PDF-1.4\n"
     assert not active_path.exists()
 
@@ -93,7 +93,7 @@ def test_archive_cover_letter_for_application_matches_record_without_draft_id_by
         AppPaths(pdf_output_dir=output_dir, pdf_archive_dir=archive_dir),
     )
 
-    archived_path = archive_dir / f"Hanif-Carroll-Cover-Letter-Acme-Systems-Software-Engineer-{stored.id[:8]}.pdf"
+    archived_path = archive_dir / f"Hanif-Carroll-Cover-Letter-Acme-Systems-{stored.id[:8]}.pdf"
     assert archived_path.read_bytes() == b"%PDF-1.4\n"
     assert not active_path.exists()
 

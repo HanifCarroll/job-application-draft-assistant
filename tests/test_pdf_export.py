@@ -83,7 +83,7 @@ def test_export_cover_letter_pdf_contains_letterhead_and_draft(tmp_path: Path) -
     exported = export_cover_letter_pdf(stored, output_dir, resume_path)
 
     assert Path(exported.pdf_path).is_file()
-    assert exported.filename == "Hanif-Carroll-Cover-Letter-Acme-Systems-Software-Engineer.pdf"
+    assert exported.filename == "Hanif-Carroll-Cover-Letter-Acme-Systems.pdf"
     text = _pdf_text(Path(exported.pdf_path))
     assert "Hanif Carroll" in text
     assert "hanif@example.com" in text
@@ -100,7 +100,36 @@ def test_export_cover_letter_pdf_contains_letterhead_and_draft(tmp_path: Path) -
     }
 
 
-def test_export_cover_letter_pdf_overwrites_same_company_role_filename(tmp_path: Path) -> None:
+def test_export_cover_letter_pdf_filename_uses_company_without_full_role_title(tmp_path: Path) -> None:
+    resume_path = tmp_path / "resume.pdf"
+    output_dir = tmp_path / "letters"
+    _write_resume_pdf(
+        resume_path,
+        [
+            "Hanif Carroll",
+            "Product Engineer",
+            "hanif@example.com | hanifcarroll.com",
+        ],
+    )
+    stored = make_stored_draft(
+        DraftRequest(
+            opportunity=OpportunitySnapshot(
+                title="*Senior Fullstack Engineer (Nodejs, Javascript, AWS exp.) - W2 role",
+                company="Kellton",
+            )
+        ),
+        _draft_payload("Draft body."),
+    )
+
+    exported = export_cover_letter_pdf(stored, output_dir, resume_path)
+
+    assert exported.filename == "Hanif-Carroll-Cover-Letter-Kellton.pdf"
+    assert "Senior-Fullstack-Engineer" not in exported.filename
+    assert "Nodejs" not in exported.filename
+    assert "W2" not in exported.filename
+
+
+def test_export_cover_letter_pdf_overwrites_same_company_filename(tmp_path: Path) -> None:
     resume_path = tmp_path / "resume.pdf"
     output_dir = tmp_path / "letters"
     _write_resume_pdf(
@@ -124,7 +153,7 @@ def test_export_cover_letter_pdf_overwrites_same_company_role_filename(tmp_path:
     second_export = export_cover_letter_pdf(second, output_dir, resume_path)
 
     assert first_export.pdf_path == second_export.pdf_path
-    assert first_export.filename == "Hanif-Carroll-Cover-Letter-Acme-Systems-Software-Engineer.pdf"
+    assert first_export.filename == "Hanif-Carroll-Cover-Letter-Acme-Systems.pdf"
     text = _pdf_text(Path(second_export.pdf_path))
     assert "Second draft body." in text
     assert "First draft body." not in text
@@ -153,7 +182,7 @@ def test_archive_cover_letter_pdf_moves_generated_file_to_archive(tmp_path: Path
     archive_path = archive_cover_letter_pdf(stored, output_dir, archive_dir)
 
     assert archive_path is not None
-    assert archive_path == archive_dir / f"Hanif-Carroll-Cover-Letter-Acme-Systems-Software-Engineer-{stored.id[:8]}.pdf"
+    assert archive_path == archive_dir / f"Hanif-Carroll-Cover-Letter-Acme-Systems-{stored.id[:8]}.pdf"
     assert archive_path.read_bytes() == original_bytes
     assert not active_path.exists()
 

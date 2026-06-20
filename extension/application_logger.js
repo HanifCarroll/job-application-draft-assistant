@@ -43,20 +43,39 @@
     {
       source: "ziprecruiter",
       hosts: ["ziprecruiter.com"],
-      submitSelectors: ['button[data-testid="submit-application"]', 'button[data-testid="apply-submit"]'],
+      submitSelectors: [
+        'button[data-testid="submit-application"]',
+        'button[data-testid="apply-submit"]',
+        'button[aria-label="1-Click Apply"]',
+        'button[aria-label="Quick Apply"]',
+      ],
+      submitButtons: [{ selector: 'button[type="button"]', text: "Submit" }],
       confirmationSelectors: [
         { selector: '[data-testid="application-submitted"]', text: "Application Submitted" },
         { selector: '[data-testid="apply-confirmation"]', text: "Application Submitted" },
+        { selector: '[role="status"]', text: "Your application was submitted!" },
+        { selector: '[role="alert"]', text: "Your application was submitted!" },
+        { selector: 'button[aria-label="Applied"]', text: "Applied" },
       ],
       confirmationPathPatterns: [/\/candidate\/application\/submitted\/?$/],
     },
     {
       source: "roberthalf",
       hosts: ["roberthalf.com"],
-      submitSelectors: ['button[data-testid="submit-application"]', 'button[data-testid="apply-submit"]'],
+      submitSelectors: [
+        'button[data-testid="submit-application"]',
+        'button[data-testid="apply-submit"]',
+        'button[aria-label="Quick apply"]',
+        'rhcl-button[component-title="Quick apply"]',
+        'rhcl-job-card[data-testid="job-details"][cta-type="quick-apply"]',
+      ],
       confirmationSelectors: [
         { selector: '[data-testid="application-confirmation"]', text: "Application submitted" },
         { selector: '[data-testid="application-submitted"]', text: "Application submitted" },
+        { selector: 'rhcl-job-card[data-testid="job-details"][applied=""]' },
+        { selector: 'rhcl-job-card[data-testid="job-details"][applied="true"]' },
+        { selector: 'rhcl-job-card[selected="true"][applied=""]' },
+        { selector: 'rhcl-job-card[selected="true"][applied="true"]' },
       ],
       confirmationPathPatterns: [/\/application\/submitted\/?$/],
     },
@@ -86,6 +105,7 @@
   function elementConfirms(rule) {
     return (rule.confirmationSelectors || []).some((item) => {
       const element = document.querySelector(item.selector);
+      if (!item.text) return Boolean(element);
       return clean(element?.textContent || "") === item.text;
     });
   }
@@ -99,11 +119,22 @@
     return clean(element?.textContent || element?.getAttribute("aria-label") || "");
   }
 
-  function matchesSubmit(rule, target) {
+  function eventElements(event) {
+    const path = typeof event.composedPath === "function" ? event.composedPath() : [event.target];
+    return path.filter((item) => item instanceof Element);
+  }
+
+  function matchesSubmitElement(rule, target) {
     const submit = rule.submitSelectors.map((selector) => target.closest(selector)).find(Boolean);
-    if (!submit) return false;
-    if (!rule.submitText) return true;
-    return buttonText(submit) === rule.submitText;
+    if (submit && (!rule.submitText || buttonText(submit) === rule.submitText)) return true;
+    return (rule.submitButtons || []).some((item) => {
+      const button = target.closest(item.selector);
+      return button && (!item.text || buttonText(button) === item.text);
+    });
+  }
+
+  function matchesSubmit(rule, event) {
+    return eventElements(event).some((target) => matchesSubmitElement(rule, target));
   }
 
   async function diceWizardOpportunity() {
@@ -275,14 +306,18 @@
     return parsed.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
   }
 
-  function setLedgerBadge(application, { label = "Already applied", includeAppliedAt = true } = {}) {
+  function setLedgerBadge(application, { label = "Already applied", includeAppliedAt = true, sourceUrl = "" } = {}) {
     const existing = document.getElementById(LEDGER_BADGE_ID);
     if (!application) {
       existing?.remove();
+      visibleBadgeSourceUrl = "";
       return;
     }
     const badge = existing || document.createElement("div");
+    const badgeSourceUrl = sourceUrl || application.source_url || "";
+    visibleBadgeSourceUrl = badgeSourceUrl;
     badge.id = LEDGER_BADGE_ID;
+    badge.dataset.sourceUrl = badgeSourceUrl;
     badge.setAttribute("role", "status");
     badge.style.position = "fixed";
     badge.style.right = "18px";
@@ -319,11 +354,10 @@
 
   let badgeLookupTimer = 0;
   let lastBadgeLookupKey = "";
-  let recordedBadgeHref = "";
+  let visibleBadgeSourceUrl = "";
 
-  function setRecordedLedgerBadge(application, label) {
-    recordedBadgeHref = location.href;
-    setLedgerBadge(application, { label, includeAppliedAt: false });
+  function setFreshLedgerBadge(application, label, sourceUrl) {
+    setLedgerBadge(application, { label, includeAppliedAt: false, sourceUrl });
   }
 
   async function updateLedgerBadge({ force = false } = {}) {
@@ -332,16 +366,16 @@
       setLedgerBadge(null);
       return;
     }
-    if (recordedBadgeHref === location.href) return;
     const opportunity = await currentOpportunity(rule);
     const sourceUrl = opportunity?.source_url || location.href;
     if (!sourceUrl) {
       setLedgerBadge(null);
       return;
     }
-    if (!force && sourceUrl === lastBadgeLookupKey) return;
+    if (!force && visibleBadgeSourceUrl === sourceUrl) return;
+    if (!force && !visibleBadgeSourceUrl && sourceUrl === lastBadgeLookupKey) return;
     lastBadgeLookupKey = sourceUrl;
-    setLedgerBadge(await lookupApplication(sourceUrl));
+    setLedgerBadge(await lookupApplication(sourceUrl), { sourceUrl });
   }
 
   function scheduleLedgerBadgeRefresh(delay = 500, options = {}) {
@@ -365,11 +399,11 @@
     const rule = currentRule();
     if (!rule) return;
     if (!elementConfirms(rule) && !pathConfirms(rule)) return;
-    const key = `${rule.source}:${location.href}`;
+    const opportunity = await currentOpportunity(rule);
+    const sourceUrl = opportunity?.source_url || location.href;
+    const key = `${rule.source}:${sourceUrl}`;
     if (sessionStorage.getItem(CONFIRMED_KEY) === key) return;
     sessionStorage.setItem(CONFIRMED_KEY, key);
-    const opportunity = await currentOpportunity(rule);
-    recordedBadgeHref = location.href;
     chrome.runtime.sendMessage(
       {
         type: "APPLICATION_CONFIRMED",
@@ -380,19 +414,17 @@
       (response) => {
         lastBadgeLookupKey = "";
         if (chrome.runtime.lastError || !response?.ok) {
-          recordedBadgeHref = "";
           scheduleLedgerBadgeRefresh(500, { force: true });
           return;
         }
         if (response.application) {
-          setRecordedLedgerBadge(response.application, "Application recorded");
+          setFreshLedgerBadge(response.application, "Application recorded", sourceUrl);
           return;
         }
         if (response.queued && opportunity) {
-          setRecordedLedgerBadge(opportunity, "Application log queued");
+          setFreshLedgerBadge(opportunity, "Application log queued", sourceUrl);
           return;
         }
-        recordedBadgeHref = "";
         scheduleLedgerBadgeRefresh(500, { force: true });
       }
     );
@@ -403,10 +435,10 @@
     (event) => {
       const rule = currentRule();
       if (!rule) return;
-      const target = event.target;
-      if (!(target instanceof Element)) return;
-      if (!matchesSubmit(rule, target)) return;
-      capturePending(rule).catch(() => {});
+      scheduleLedgerBadgeRefresh(300, { force: true });
+      if (matchesSubmit(rule, event)) {
+        capturePending(rule).catch(() => {});
+      }
     },
     true
   );
@@ -415,7 +447,12 @@
     confirmIfReady().catch(() => {});
     scheduleLedgerBadgeRefresh(1200);
   });
-  observer.observe(document.documentElement, { childList: true, subtree: true });
+  observer.observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ["applied", "aria-label", "cta-type", "data-testid", "destination", "headline", "href", "selected"],
+    childList: true,
+    subtree: true,
+  });
   confirmIfReady().catch(() => {});
   scheduleLedgerBadgeRefresh(500);
   window.setTimeout(() => {

@@ -268,19 +268,7 @@
     id: "ziprecruiter",
     matches: () => location.hostname.includes("ziprecruiter.com"),
     async extract() {
-      const title = firstText(['[data-testid="job-card-title"]', '[data-testid="job-title"]']);
-      const company = firstText(['[data-testid="job-card-company"]']);
-      const locationText = firstText(['[data-testid="job-card-location"]']);
-      const description = firstText(['[data-testid="jobDescriptionText"]', '[data-testid="job-description"]']);
-      return opportunity("ziprecruiter", {
-        title,
-        company,
-        location: locationText,
-        employment_type: "",
-        description,
-        skills: [],
-        extraction_warnings: description ? [] : ["ZipRecruiter job description element was not found; review the snapshot before drafting."],
-      });
+      return zipRecruiterRightPaneOpportunity() || zipRecruiterReviewDialogOpportunity() || zipRecruiterEmptyOpportunity();
     },
   };
 
@@ -288,19 +276,20 @@
     id: "roberthalf",
     matches: () => location.hostname.includes("roberthalf.com"),
     async extract() {
-      const description = firstText(['[data-testid="job-details-description"]']);
-      const requirementsText = firstText(['[data-testid="job-details-requirements"]']);
-      const title = firstText(['a[href*="/us/en/job/"].rhcl-typography--display5', 'a[href*="/us/en/job/"]']);
-      const location = firstText(['[data-testid="job-details-location"]']);
+      const details = robertHalfSelectedDetails();
+      const description = robertHalfDescription(details);
+      const requirementsText = firstText(['[data-testid="job-details-requirements"]'], details || document);
+      const title = clean(details?.getAttribute("headline") || "");
       return opportunity("roberthalf", {
+        source_url: robertHalfSourceUrl(details),
         title,
         company: "Robert Half",
-        location,
-        employment_type: "",
+        location: robertHalfLocation(details),
+        employment_type: clean(details?.getAttribute("type") || ""),
         description,
         requirements: requirementsText ? [requirementsText] : [],
         skills: [],
-        extraction_warnings: description ? [] : ["Robert Half job detail region was not found; review the snapshot before drafting."],
+        extraction_warnings: robertHalfWarnings({ details, title, description }),
       });
     },
   };
@@ -327,6 +316,131 @@
     const aboutHeading = Array.from(card.querySelectorAll('h3')).find((node) => clean(node.textContent) === `About ${company}`);
     if (!aboutHeading) return "";
     return selectedText(card.querySelector('[data-testid="richTextElement"]'));
+  }
+
+  function zipRecruiterRightPaneOpportunity() {
+    const root = document.querySelector('[data-testid="right-pane"]');
+    const details = root?.querySelector('[data-testid="job-details-scroll-container"]');
+    if (!details) return null;
+    const title = clean(details.querySelector('img[alt]')?.getAttribute("alt") || "") || firstText(['h2'], details);
+    const company = firstText(['a[href^="/co/"]'], details);
+    const locationText = zipRecruiterHeaderLocation(details);
+    const description = zipRecruiterDescription(details);
+    return opportunity("ziprecruiter", {
+      source_url: zipRecruiterSourceUrl(),
+      title,
+      company,
+      location: locationText,
+      employment_type: "",
+      description,
+      skills: [],
+      company_context: selectedText(details.querySelector('[data-testid="company-data"]')),
+      extraction_warnings: zipRecruiterWarnings({ title, description }),
+    });
+  }
+
+  function zipRecruiterHeaderLocation(details) {
+    const companyLink = details.querySelector('a[href^="/co/"]');
+    return selectedText(companyLink?.parentElement?.querySelector('p'));
+  }
+
+  function zipRecruiterDescription(details) {
+    const heading = Array.from(details.querySelectorAll('h2')).find((node) => clean(node.textContent) === "Job description");
+    return selectedText(heading?.nextElementSibling);
+  }
+
+  function zipRecruiterReviewDialogOpportunity() {
+    const dialog = document.querySelector('[role="dialog"]');
+    if (!dialog) return null;
+    const headingText = firstText(['section h2'], dialog);
+    const title = clean(headingText.replace(/^Applying to\s+/, ""));
+    const companyLocation = zipRecruiterCompanyLocation(firstText(['section h3'], dialog));
+    return opportunity("ziprecruiter", {
+      source_url: zipRecruiterSourceUrl(),
+      title,
+      company: companyLocation.company,
+      location: companyLocation.location,
+      employment_type: "",
+      description: "",
+      skills: [],
+      extraction_warnings: zipRecruiterWarnings({ title, description: "" }),
+    });
+  }
+
+  function zipRecruiterCompanyLocation(value) {
+    const parts = clean(value).split(" in ");
+    if (parts.length < 2) return { company: clean(value), location: "" };
+    const locationText = parts.pop() || "";
+    return { company: clean(parts.join(" in ")), location: clean(locationText) };
+  }
+
+  function zipRecruiterWarnings({ title, description }) {
+    return [
+      ...(title ? [] : ["ZipRecruiter selected job title was not found; review the snapshot before drafting."]),
+      ...(description ? [] : ["ZipRecruiter job description element was not found; review the snapshot before drafting."]),
+    ];
+  }
+
+  function zipRecruiterSourceUrl() {
+    try {
+      const url = new URL(location.href);
+      const listingKey = clean(url.searchParams.get("lk") || "");
+      if (!listingKey) return location.href;
+      const sourceUrl = new URL(url.pathname, url.origin);
+      sourceUrl.searchParams.set("lk", listingKey);
+      return sourceUrl.href;
+    } catch (_error) {
+      return location.href;
+    }
+  }
+
+  function zipRecruiterEmptyOpportunity() {
+    return opportunity("ziprecruiter", {
+      source_url: zipRecruiterSourceUrl(),
+      description: "",
+      extraction_warnings: [
+        "ZipRecruiter selected job detail region was not found; review the snapshot before drafting.",
+        ...zipRecruiterWarnings({ title: "", description: "" }),
+      ],
+    });
+  }
+
+  function robertHalfSelectedDetails() {
+    return document.querySelector('rhcl-job-card[data-testid="job-details"]') || document.querySelector('rhcl-job-card[selected="true"]');
+  }
+
+  function robertHalfDescription(details) {
+    const body = firstText(['[data-testid="job-details-description"]'], details || document);
+    if (body) return body;
+    return htmlToText(details?.getAttribute("copy"));
+  }
+
+  function robertHalfSourceUrl(details) {
+    const destination = clean(details?.getAttribute("destination") || "");
+    if (!destination) return location.href;
+    try {
+      return new URL(destination, location.origin).href;
+    } catch (_error) {
+      return location.href;
+    }
+  }
+
+  function robertHalfLocation(details) {
+    const worksite = clean(details?.getAttribute("worksite") || "");
+    const locationText = clean(details?.getAttribute("location") || "");
+    return [robertHalfWorksiteLabel(worksite), locationText].filter(Boolean).join(", ");
+  }
+
+  function robertHalfWorksiteLabel(value) {
+    return value.toLowerCase() === "remote" ? "Remote" : value;
+  }
+
+  function robertHalfWarnings({ details, title, description }) {
+    return [
+      ...(details ? [] : ["Robert Half selected job detail element was not found; review the snapshot before drafting."]),
+      ...(title ? [] : ["Robert Half selected job title was not found; review the snapshot before drafting."]),
+      ...(description ? [] : ["Robert Half job description element was not found; review the snapshot before drafting."]),
+    ];
   }
 
   async function expandDetailsIfNeeded(detailsRoot) {

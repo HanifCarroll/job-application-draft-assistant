@@ -251,6 +251,8 @@ The extension checks the current job source URL against `/applications/lookup`. 
 
 PDF export is available for completed `cover_letter` drafts. The backend renders the saved `draft_text` without rewriting it, adds a restrained resume-derived letterhead, and saves the file under `JOB_APPLICATION_DRAFT_PDF_OUTPUT_DIR`.
 
+Generated cover letter PDFs are named `Hanif-Carroll-Cover-Letter-{Company}.pdf`; the scraped role title remains available inside the letter context but is not included in the upload filename.
+
 The default resume source is the iCloud Downloads resume path shown in Configuration. Reindexing extracts the resume text into draft context; PDF export reads only the resume header/contact lines needed for letterhead and skips phone-like contact items.
 
 After an application is logged with an attached cover letter draft, the backend moves the already-generated PDF from `JOB_APPLICATION_DRAFT_PDF_OUTPUT_DIR` into `JOB_APPLICATION_DRAFT_PDF_ARCHIVE_DIR`. If no PDF was generated for that draft, application logging still succeeds and no archive file is created.
