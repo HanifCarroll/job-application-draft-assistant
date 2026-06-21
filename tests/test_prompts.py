@@ -10,6 +10,7 @@ from job_application_draft_assistant.drafts.prompts import build_draft_prompt
 SECTION_HEADINGS = {
     "Information rules:",
     "Writing rules:",
+    "Language rules:",
     "Draft rules:",
     "Explain experience simply:",
     "Audit fields only:",
@@ -18,6 +19,7 @@ SECTION_HEADINGS = {
 
 APPLICANT_FACING_SECTIONS = [
     "Writing rules",
+    "Language rules",
     "Draft rules",
     "Explain experience simply",
 ]
@@ -80,6 +82,24 @@ def test_prompt_contract_separates_applicant_copy_from_audit_fields() -> None:
 
         assert "where it came from" in audit_section
         assert "applicant-facing draft" in audit_section
+
+
+def test_prompt_language_rules_target_nontechnical_plain_language() -> None:
+    for prompt in (_prompt(), _upwork_prompt()):
+        sections = _sections(prompt)
+        language_rules = sections["Language rules"]
+
+        for required in ["smart nontechnical hiring manager or client", "simple, clear, concise, direct language"]:
+            assert required in language_rules
+
+        for required in ["Avoid jargon", "buzzwords", "abstract phrases", "business or product outcomes"]:
+            assert required in language_rules
+
+        for vague_phrase in ["scalable architecture", "robust solution", "end-to-end", "production-ready", "leveraging technology"]:
+            assert vague_phrase in language_rules
+
+        assert "one clear idea per sentence" in language_rules
+        assert "revise the draft once to remove jargon" in language_rules
 
 
 def test_cover_letter_prompt_targets_job_platform_contracts() -> None:

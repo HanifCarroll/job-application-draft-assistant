@@ -5,6 +5,17 @@ import json
 from job_application_draft_assistant.models import ContextBundle, DraftRequest
 
 
+LANGUAGE_RULES = """Language rules:
+- Write for a smart nontechnical hiring manager or client.
+- Use simple, clear, concise, direct language.
+- Avoid jargon, buzzwords, and abstract phrases.
+- Prefer business or product outcomes over technical explanation.
+- If a technical term from the job post is necessary, use it once and connect it to the client's outcome.
+- Replace vague phrases like "scalable architecture", "robust solution", "end-to-end", "production-ready", and "leveraging technology" with concrete plain-English descriptions of what was built or improved.
+- Keep sentences short. Prefer one clear idea per sentence.
+- Before returning, revise the draft once to remove jargon and make it sound like a capable person explaining their fit plainly."""
+
+
 def build_draft_prompt(request: DraftRequest, context: ContextBundle) -> str:
     if request.draft_type == "upwork_proposal":
         return build_upwork_proposal_prompt(request, context)
@@ -99,6 +110,8 @@ Writing rules:
 - Classify the role in `role_classification` in plain terms, such as "frontend staff augmentation", "founder MVP build", or "AI workflow automation".
 - Choose the strongest angle for this job. You may reuse an available offer, narrow it, or create a custom angle when the offers do not fit.
 - Choose 0-3 project slugs from `available_projects`; prefer 1-2. Use no project if none is genuinely relevant.
+
+{LANGUAGE_RULES}
 
 {draft_rules}
 
