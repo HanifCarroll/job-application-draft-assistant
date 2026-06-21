@@ -396,7 +396,11 @@ def test_extension_wires_application_logging() -> None:
     assert "AUTO_SUBMIT_KEY" in dice_wizard_assistant_js
     assert "COVER_LETTER_SELECTOR" in dice_wizard_assistant_js
     assert "function sessionCount" in dice_wizard_assistant_js
+    assert "function coverLetterSection" in dice_wizard_assistant_js
+    assert 'document.querySelectorAll("form > div")' in dice_wizard_assistant_js
+    assert 'clean(label.textContent) === "Cover letter"' in dice_wizard_assistant_js
     assert "function coverLetterAttachmentPresent" in dice_wizard_assistant_js
+    assert "const coverLetter = coverLetterSection();" in dice_wizard_assistant_js
     assert 'return /\\.pdf/i.test(clean(coverLetter.textContent || ""));' in dice_wizard_assistant_js
     assert 'wizardButton("Next")' in dice_wizard_assistant_js
     assert 'wizardButton("Submit")' in dice_wizard_assistant_js

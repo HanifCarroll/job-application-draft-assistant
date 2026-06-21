@@ -31,10 +31,18 @@
     document.getElementById(PANEL_ID)?.remove();
   }
 
+  function coverLetterSection() {
+    const declared = document.querySelector(COVER_LETTER_SELECTOR);
+    if (declared) return declared;
+    return Array.from(document.querySelectorAll("form > div")).find((section) => {
+      return Array.from(section.querySelectorAll("span")).some((label) => clean(label.textContent) === "Cover letter");
+    }) || null;
+  }
+
   function isResumeCoverLetterStep() {
     if (!isDiceWizard()) return false;
     return Boolean(
-      document.querySelector(COVER_LETTER_SELECTOR) ||
+      coverLetterSection() ||
         document.querySelector('input[type="file"][accept*="pdf"]') ||
         document.querySelector('input[type="file"]')
     );
@@ -406,7 +414,7 @@
   }
 
   function coverLetterAttachmentPresent() {
-    const coverLetter = document.querySelector(COVER_LETTER_SELECTOR);
+    const coverLetter = coverLetterSection();
     if (!coverLetter) return false;
     return /\.pdf/i.test(clean(coverLetter.textContent || ""));
   }
