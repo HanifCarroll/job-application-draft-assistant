@@ -90,12 +90,26 @@ def test_upwork_apply_page_uses_nuxt_job_apply_state() -> None:
     upwork_block = content_script.split("function upworkDescription", 1)[1].split("const diceAdapter = {", 1)[0]
 
     assert "function upworkApplyVisibleOpportunity" in upwork_block
-    assert 'upworkSectionRoot("Job details")' in upwork_block
+    assert "function upworkApplyJobDetailsRoot" in upwork_block
+    assert "function upworkSkillsFromRootOrDocument" in content_script
+    assert "function upworkJobDetailsVisibleOpportunity" in upwork_block
+    assert "function upworkJobDetailsVisibleTitle" in upwork_block
+    assert "function upworkCleanJobDetailDescription" in upwork_block
+    assert "__applicationDraftAssistantMessageListenerInstalled" in content_script
+    assert "globalThis.__applicationDraftAssistantExtract()" in content_script
+    assert "if (globalThis.__jobApplicationDraftAssistantLoaded)" not in content_script
+    assert 'upworkExactHeading("Job details")' in upwork_block
+    assert "if (upworkViewPostingLink(node)) return node" in upwork_block
     assert 'upworkSectionRoot("Skills and expertise")' in upwork_block
+    assert 'upworkSectionRoot("Skills and Expertise")' in upwork_block
+    assert 'clean(node.textContent) === label' in upwork_block
     assert "upworkViewPostingLink(detailsRoot)" in upwork_block
+    assert "upworkCleanVisibleDescription(sibling.textContent || \"\")" in upwork_block
+    assert 'replace(/^Summary\\s*/, "")' in upwork_block
     assert "await expandDetailsIfNeeded(detailsRoot)" in upwork_block
     assert "upworkApplyVisibleDescription(detailsRoot)" in upwork_block
     assert "upworkSkills(skillsRoot || document)" in upwork_block
+    assert "upworkSkillsFromRootOrDocument(skillsRoot)" in upwork_block
     assert "function upworkApplyState" in upwork_block
     assert 'globalThis.__NUXT__?.state?.["job-apply"]' in upwork_block
     assert "jobApply?.jobDetails?.opening?.job" in upwork_block
@@ -120,21 +134,28 @@ def test_upwork_apply_page_uses_nuxt_job_apply_state() -> None:
     assert "children.length ? children" in upwork_block
     assert "skill?.prefLabel || skill?.name" in upwork_block
     assert "function upworkApplyOpportunity" in upwork_block
+    assert "upworkCleanVisibleDescription(job?.description || \"\")" in upwork_block
     assert "function upworkJobDetailsOpportunity" in upwork_block
     assert "job?.title || jobDetails?.seo?.title" in upwork_block
-    assert "job?.description || jobDetails?.seo?.description" in upwork_block
+    assert "upworkCleanVisibleDescription(job?.description || jobDetails?.seo?.description || \"\")" in upwork_block
     assert "const applyStateOpportunity = upworkApplyOpportunity()" in upwork_block
     assert "if (applyStateOpportunity) return applyStateOpportunity" in upwork_block
     assert "const jobDetailsStateOpportunity = upworkJobDetailsOpportunity()" in upwork_block
-    assert "if (jobDetailsStateOpportunity) return jobDetailsStateOpportunity" in upwork_block
+    assert "jobDetailsStateOpportunity?.title && jobDetailsStateOpportunity?.description && jobDetailsStateOpportunity.skills.length" in upwork_block
     assert "const visibleApplyOpportunity = await upworkApplyVisibleOpportunity()" in upwork_block
     assert "if (visibleApplyOpportunity) return visibleApplyOpportunity" in upwork_block
+    assert "const visibleJobDetailsOpportunity = upworkJobDetailsVisibleOpportunity()" in upwork_block
+    assert "if (visibleJobDetailsOpportunity) return visibleJobDetailsOpportunity" in upwork_block
+    assert "if (jobDetailsStateOpportunity) return jobDetailsStateOpportunity" in upwork_block
     assert "Upwork apply-page job title was not found in Nuxt job state." in upwork_block
     assert "Upwork apply-page job description was not found in Nuxt job state." in upwork_block
     assert "Upwork apply-page visible job title was not found in the Job details section." in upwork_block
     assert "Upwork apply-page visible job description was not found in the Job details section." in upwork_block
     assert "Upwork job-detail title was not found in Nuxt job state." in upwork_block
     assert "Upwork job-detail description was not found in Nuxt job state." in upwork_block
+    assert "Upwork job-detail visible title was not found." in upwork_block
+    assert "Upwork job-detail visible description was not found." in upwork_block
+    assert "Upwork job-detail visible skills were not found." in upwork_block
 
 
 def test_dice_search_posting_picker_uses_declared_link_contract() -> None:
@@ -346,6 +367,10 @@ def test_popup_uses_unified_source_aware_snapshot_form() -> None:
     assert "LOOKUP_APPLICATION" in popup_js
     assert "refreshApplicationLookup" in popup_js
     assert "Already in application ledger." in popup_js
+    assert 'chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ["content_script.js"] })' in popup_js
+    assert "async function executeExtractor(tabId)" in popup_js
+    assert "globalThis.__applicationDraftAssistantExtract()" in popup_js
+    assert "sendExtractMessage" not in popup_js
 
 
 def test_popup_hides_non_proposal_fields_for_upwork() -> None:

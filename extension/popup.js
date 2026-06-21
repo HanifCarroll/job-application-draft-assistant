@@ -356,16 +356,25 @@ async function activeTab() {
 
 async function extractProject() {
   const tab = await activeTab();
-  try {
-    return await sendExtractMessage(tab.id);
-  } catch (_err) {
-    await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ["content_script.js"] });
-    return await sendExtractMessage(tab.id);
-  }
+  await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ["content_script.js"] });
+  return executeExtractor(tab.id);
 }
 
-async function sendExtractMessage(tabId) {
-  const response = await chrome.tabs.sendMessage(tabId, { type: "APPLICATION_DRAFT_EXTRACT" });
+async function executeExtractor(tabId) {
+  const [result] = await chrome.scripting.executeScript({
+    target: { tabId },
+    func: async () => {
+      if (typeof globalThis.__applicationDraftAssistantExtract !== "function") {
+        return { ok: false, error: "The page extractor is unavailable." };
+      }
+      try {
+        return { ok: true, opportunity: await globalThis.__applicationDraftAssistantExtract() };
+      } catch (error) {
+        return { ok: false, error: error?.message || String(error) };
+      }
+    },
+  });
+  const response = result?.result;
   if (!response?.ok) throw new Error("Could not extract job details.");
   if (!response.opportunity) throw new Error("The page extractor did not return an opportunity snapshot.");
   return response.opportunity;

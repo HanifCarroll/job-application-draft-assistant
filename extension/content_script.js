@@ -1,7 +1,4 @@
 (() => {
-  if (globalThis.__jobApplicationDraftAssistantLoaded) {
-    return;
-  }
   globalThis.__jobApplicationDraftAssistantLoaded = true;
 
   function clean(text) {
@@ -113,6 +110,11 @@
       .map((node) => clean(node.textContent || ""))
       .filter(Boolean);
     return unique(domSkills);
+  }
+
+  function upworkSkillsFromRootOrDocument(root) {
+    const skills = upworkSkills(root || document);
+    return skills.length ? skills : upworkSkills(document);
   }
 
   function jsonLdStringList(value) {
@@ -241,29 +243,58 @@
     return selectedText(firstElement(selectors, root));
   }
 
+  function upworkExactHeading(label) {
+    return Array.from(document.querySelectorAll('h1, h2, h3, h4, h5, [role="heading"]')).find((node) => clean(node.textContent) === label) || null;
+  }
+
   function upworkSectionRoot(label) {
-    const heading = Array.from(document.querySelectorAll('h2')).find((node) => clean(node.textContent) === label);
+    const heading = upworkExactHeading(label);
     return heading?.closest("section") || heading?.parentElement || null;
+  }
+
+  function upworkApplyJobDetailsRoot() {
+    const heading = upworkExactHeading("Job details");
+    let node = heading?.parentElement || null;
+    while (node && node !== document.body) {
+      if (upworkViewPostingLink(node)) return node;
+      node = node.parentElement;
+    }
+    return heading?.parentElement || null;
   }
 
   function upworkViewPostingLink(root = document) {
     return Array.from(root.querySelectorAll("a")).find((link) => clean(link.textContent || "") === "View job posting") || null;
   }
 
+  function upworkCleanVisibleDescription(text) {
+    return clean(text).replace(/\s+(?:more|less)\s+More\/Less about$/, "");
+  }
+
+  function upworkCleanJobDetailDescription(text) {
+    return upworkCleanVisibleDescription(text).replace(/^Summary\s*/, "");
+  }
+
   function upworkApplyVisibleDescription(root) {
+    const viewPosting = upworkViewPostingLink(root);
+    let sibling = viewPosting?.previousElementSibling || null;
+    while (sibling) {
+      const text = upworkCleanVisibleDescription(sibling.textContent || "");
+      if (text) return text;
+      sibling = sibling.previousElementSibling;
+    }
     const describedParagraph = Array.from(root.querySelectorAll("p"))
-      .map((node) => clean(node.textContent || ""))
+      .map((node) => upworkCleanVisibleDescription(node.textContent || ""))
       .find((text) => text && text !== "Posted" && !/^Posted\s/.test(text));
     return describedParagraph || upworkDescription(root);
   }
 
   async function upworkApplyVisibleOpportunity() {
-    const detailsRoot = upworkSectionRoot("Job details");
+    const detailsRoot = upworkApplyJobDetailsRoot();
     if (!detailsRoot) return null;
     await expandDetailsIfNeeded(detailsRoot);
     const skillsRoot = upworkSectionRoot("Skills and expertise");
     const viewPosting = upworkViewPostingLink(detailsRoot);
-    const title = firstText(['[data-test="job-title"]', '[data-test="job-details-title"]', 'h3', 'h4'], detailsRoot);
+    const title = firstText(['[data-test="job-title"]', '[data-test="job-details-title"]', '[role="heading"][aria-level="3"]', '[aria-level="3"]', 'h3', 'h4'], detailsRoot);
     const description = upworkApplyVisibleDescription(detailsRoot);
     return opportunity("upwork", {
       source_url: absoluteUrl(viewPosting?.getAttribute("href") || "") || location.href,
@@ -273,6 +304,49 @@
       extraction_warnings: [
         ...(title ? [] : ["Upwork apply-page visible job title was not found in the Job details section."]),
         ...(description ? [] : ["Upwork apply-page visible job description was not found in the Job details section."]),
+      ],
+    });
+  }
+
+  function upworkJobDetailsVisibleTitle() {
+    const summaryHeading = upworkExactHeading("Skills and Expertise") || upworkExactHeading("Preferred qualifications");
+    const headings = Array.from(document.querySelectorAll('h1, h2, h3, h4, h5, [role="heading"]')).filter((node) => {
+      const text = clean(node.textContent || "");
+      if (!text) return false;
+      if (["Skills and Expertise", "Preferred qualifications", "Activity on this job", "About the client", "Footer navigation"].includes(text)) return false;
+      return !summaryHeading || Boolean(node.compareDocumentPosition(summaryHeading) & Node.DOCUMENT_POSITION_FOLLOWING);
+    });
+    return clean(headings.at(-1)?.textContent || "");
+  }
+
+  function upworkJobDetailsVisibleDescription() {
+    const description = upworkCleanJobDetailDescription(upworkDescription(document));
+    if (description) return description;
+
+    const summary = Array.from(document.querySelectorAll("p, div, span")).find((node) => clean(node.textContent || "") === "Summary");
+    let node = summary?.nextElementSibling || null;
+    while (node) {
+      const text = upworkCleanJobDetailDescription(node.textContent || "");
+      if (text) return text;
+      node = node.nextElementSibling;
+    }
+    return "";
+  }
+
+  function upworkJobDetailsVisibleOpportunity() {
+    if (!location.pathname.startsWith("/jobs/")) return null;
+    const title = firstText(['[data-test="job-title"]', '[data-test="job-tile-title"]', '[data-test="Title"]']) || upworkJobDetailsVisibleTitle();
+    const description = upworkJobDetailsVisibleDescription();
+    const skillsRoot = upworkSectionRoot("Skills and Expertise");
+    const skills = upworkSkillsFromRootOrDocument(skillsRoot);
+    return opportunity("upwork", {
+      title,
+      description,
+      skills,
+      extraction_warnings: [
+        ...(title ? [] : ["Upwork job-detail visible title was not found."]),
+        ...(description ? [] : ["Upwork job-detail visible description was not found."]),
+        ...(skills.length ? [] : ["Upwork job-detail visible skills were not found."]),
       ],
     });
   }
@@ -327,7 +401,7 @@
     if (!state) return null;
     const { jobApply, job } = state;
     const title = clean(job?.info?.title || job?.title || "");
-    const description = clean(job?.description || "");
+    const description = upworkCleanVisibleDescription(job?.description || "");
     return opportunity("upwork", {
       source_url: upworkApplySourceUrl(jobApply, job),
       title,
@@ -345,7 +419,7 @@
     if (!state) return null;
     const { jobDetails, job } = state;
     const title = clean(job?.title || jobDetails?.seo?.title || "");
-    const description = clean(job?.description || jobDetails?.seo?.description || "");
+    const description = upworkCleanVisibleDescription(job?.description || jobDetails?.seo?.description || "");
     return opportunity("upwork", {
       source_url: upworkStructuredSourceUrl(job),
       title,
@@ -366,10 +440,17 @@
       if (applyStateOpportunity) return applyStateOpportunity;
 
       const jobDetailsStateOpportunity = upworkJobDetailsOpportunity();
-      if (jobDetailsStateOpportunity) return jobDetailsStateOpportunity;
+      if (jobDetailsStateOpportunity?.title && jobDetailsStateOpportunity?.description && jobDetailsStateOpportunity.skills.length) {
+        return jobDetailsStateOpportunity;
+      }
 
       const visibleApplyOpportunity = await upworkApplyVisibleOpportunity();
       if (visibleApplyOpportunity) return visibleApplyOpportunity;
+
+      const visibleJobDetailsOpportunity = upworkJobDetailsVisibleOpportunity();
+      if (visibleJobDetailsOpportunity) return visibleJobDetailsOpportunity;
+
+      if (jobDetailsStateOpportunity) return jobDetailsStateOpportunity;
 
       const proposalDetails = proposalJobDetailsRoot();
       if (proposalDetails) {
@@ -659,10 +740,11 @@
   globalThis.__applicationDraftAssistantExtract = extractOpportunity;
   globalThis.__applicationDraftAssistantListPostings = diceSearchResultPostings;
 
-  if (globalThis.chrome?.runtime?.onMessage) {
+  if (globalThis.chrome?.runtime?.onMessage && !globalThis.__applicationDraftAssistantMessageListenerInstalled) {
+    globalThis.__applicationDraftAssistantMessageListenerInstalled = true;
     chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       if (message?.type === "APPLICATION_DRAFT_LIST_POSTINGS") {
-        Promise.resolve(diceSearchResultPostings())
+        Promise.resolve(globalThis.__applicationDraftAssistantListPostings())
           .then((postings) => sendResponse({ ok: true, postings }))
           .catch((error) => sendResponse({ ok: false, error: error?.message || String(error) }));
         return true;
@@ -674,7 +756,7 @@
         return true;
       }
       if (message?.type === "APPLICATION_DRAFT_EXTRACT") {
-        extractOpportunity()
+        globalThis.__applicationDraftAssistantExtract()
           .then((snapshot) => sendResponse({ ok: true, opportunity: snapshot }))
           .catch((error) => sendResponse({ ok: false, error: error?.message || String(error) }));
         return true;
