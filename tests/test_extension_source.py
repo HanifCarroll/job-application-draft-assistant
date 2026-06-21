@@ -85,6 +85,29 @@ def test_dice_extraction_does_not_send_page_wide_text() -> None:
     assert "Mapbox or ESRI" not in dice_block
 
 
+def test_upwork_apply_page_uses_nuxt_job_apply_state() -> None:
+    content_script = (REPO_ROOT / "extension" / "content_script.js").read_text(encoding="utf-8")
+    upwork_block = content_script.split("function upworkDescription", 1)[1].split("const diceAdapter = {", 1)[0]
+
+    assert "function upworkApplyState" in upwork_block
+    assert 'globalThis.__NUXT__?.state?.["job-apply"]' in upwork_block
+    assert "jobApply?.jobDetails?.opening?.job" in upwork_block
+    assert "function upworkApplySourceUrl" in upwork_block
+    assert 'a[data-test="open-original-posting"]' in upwork_block
+    assert "job?.info?.ciphertext" in upwork_block
+    assert 'return absoluteUrl(`/jobs/${ciphertext}`)' in upwork_block
+    assert "function upworkApplySkills" in upwork_block
+    assert "job?.sandsData?.ontologySkills" in upwork_block
+    assert "skill?.prefLabel" in upwork_block
+    assert "function upworkApplyLocation" in upwork_block
+    assert "qualifications?.countries" in upwork_block
+    assert "function upworkApplyOpportunity" in upwork_block
+    assert "const applyStateOpportunity = upworkApplyOpportunity()" in upwork_block
+    assert "if (applyStateOpportunity) return applyStateOpportunity" in upwork_block
+    assert "Upwork apply-page job title was not found in Nuxt job state." in upwork_block
+    assert "Upwork apply-page job description was not found in Nuxt job state." in upwork_block
+
+
 def test_dice_search_posting_picker_uses_declared_link_contract() -> None:
     content_script = (REPO_ROOT / "extension" / "content_script.js").read_text(encoding="utf-8")
     popup_html = (REPO_ROOT / "extension" / "popup.html").read_text(encoding="utf-8")

@@ -241,10 +241,56 @@
     return selectedText(firstElement(selectors, root));
   }
 
+  function upworkApplyState() {
+    const jobApply = globalThis.__NUXT__?.state?.["job-apply"];
+    const job = jobApply?.jobDetails?.opening?.job;
+    if (!job) return null;
+    return { jobApply, job };
+  }
+
+  function upworkApplySourceUrl(job) {
+    const originalPosting = absoluteUrl(document.querySelector('a[data-test="open-original-posting"]')?.getAttribute("href") || "");
+    if (originalPosting) return originalPosting;
+    const ciphertext = clean(job?.info?.ciphertext || "");
+    if (!ciphertext) return location.href;
+    return absoluteUrl(`/jobs/${ciphertext}`);
+  }
+
+  function upworkApplySkills(job) {
+    return unique((job?.sandsData?.ontologySkills || []).map((skill) => clean(skill?.prefLabel || "")));
+  }
+
+  function upworkApplyLocation(jobApply) {
+    const countries = jobApply?.jobDetails?.opening?.qualifications?.countries;
+    return Array.isArray(countries) ? countries.map(clean).filter(Boolean).join(", ") : "";
+  }
+
+  function upworkApplyOpportunity() {
+    const state = upworkApplyState();
+    if (!state) return null;
+    const { jobApply, job } = state;
+    const title = clean(job?.info?.title || "");
+    const description = clean(job?.description || "");
+    return opportunity("upwork", {
+      source_url: upworkApplySourceUrl(job),
+      title,
+      location: upworkApplyLocation(jobApply),
+      description,
+      skills: upworkApplySkills(job),
+      extraction_warnings: [
+        ...(title ? [] : ["Upwork apply-page job title was not found in Nuxt job state."]),
+        ...(description ? [] : ["Upwork apply-page job description was not found in Nuxt job state."]),
+      ],
+    });
+  }
+
   const upworkAdapter = {
     id: "upwork",
     matches: () => location.hostname.includes("upwork.com"),
     async extract() {
+      const applyStateOpportunity = upworkApplyOpportunity();
+      if (applyStateOpportunity) return applyStateOpportunity;
+
       const proposalDetails = proposalJobDetailsRoot();
       if (proposalDetails) {
         await expandDetailsIfNeeded(proposalDetails);
