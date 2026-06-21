@@ -40,6 +40,12 @@ const els = {
   progressBar: document.querySelector("#progress-bar"),
   stage: document.querySelector("#stage"),
   elapsed: document.querySelector("#elapsed"),
+  dicePostingPicker: document.querySelector("#dice-posting-picker"),
+  dicePostingSummary: document.querySelector("#dice-posting-summary"),
+  dicePostingSelectAll: document.querySelector("#dice-posting-select-all"),
+  dicePostingList: document.querySelector("#dice-posting-list"),
+  dicePostingOpenSelected: document.querySelector("#dice-posting-open-selected"),
+  dicePostingStatus: document.querySelector("#dice-posting-status"),
 };
 
 let currentState = null;
@@ -48,6 +54,7 @@ let pollToken = 0;
 let saveTimer = 0;
 let applicationLookupTimer = 0;
 let controlsBusy = false;
+let dicePostings = [];
 
 const STAGE_LABELS = {
   queued: "Queued",
@@ -193,6 +200,65 @@ function clearApplicationOutput() {
   setApplicationControls();
 }
 
+function clearDicePostingPicker() {
+  dicePostings = [];
+  els.dicePostingPicker.hidden = true;
+  els.dicePostingList.textContent = "";
+  els.dicePostingSummary.textContent = "0 visible";
+  els.dicePostingStatus.textContent = "";
+  els.dicePostingOpenSelected.disabled = true;
+  els.dicePostingSelectAll.disabled = true;
+  els.dicePostingSelectAll.textContent = "Select all";
+}
+
+function selectedDicePostingIndexes() {
+  return Array.from(els.dicePostingList.querySelectorAll('input[type="checkbox"]:checked'))
+    .map((input) => Number(input.value))
+    .filter((index) => Number.isInteger(index) && index >= 0 && index < dicePostings.length);
+}
+
+function updateDicePostingControls() {
+  const selectedCount = selectedDicePostingIndexes().length;
+  const totalCount = dicePostings.length;
+  els.dicePostingOpenSelected.disabled = selectedCount === 0;
+  els.dicePostingSelectAll.disabled = totalCount === 0;
+  els.dicePostingSelectAll.textContent = selectedCount === totalCount && totalCount > 0 ? "Clear" : "Select all";
+  els.dicePostingStatus.textContent = selectedCount ? `${selectedCount} selected` : "";
+}
+
+function renderDicePostingPicker(postings) {
+  dicePostings = postings.filter((posting) => posting?.title && posting?.url);
+  if (!dicePostings.length) {
+    clearDicePostingPicker();
+    return;
+  }
+
+  els.dicePostingList.textContent = "";
+  dicePostings.forEach((posting, index) => {
+    const row = document.createElement("label");
+    row.className = "posting-row";
+
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.value = String(index);
+
+    const title = document.createElement("span");
+    title.textContent = posting.title;
+
+    row.append(checkbox, title);
+    els.dicePostingList.append(row);
+  });
+
+  els.dicePostingSummary.textContent = `${dicePostings.length} visible`;
+  els.dicePostingPicker.hidden = false;
+  updateDicePostingControls();
+}
+
+async function refreshDicePostingPicker() {
+  const postings = await listActivePagePostings();
+  renderDicePostingPicker(postings);
+}
+
 function setApplicationControls() {
   els.markApplied.disabled = controlsBusy || !els.sourceUrl.value.trim();
   els.markApplied.textContent = currentApplicationMatch ? "Refresh Log" : "Mark Applied";
@@ -283,6 +349,22 @@ async function sendExtractMessage(tabId) {
   if (!response?.ok) throw new Error("Could not extract job details.");
   if (!response.opportunity) throw new Error("The page extractor did not return an opportunity snapshot.");
   return response.opportunity;
+}
+
+async function listActivePagePostings() {
+  const tab = await activeTab();
+  try {
+    return await sendPostingListMessage(tab.id);
+  } catch (_err) {
+    await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ["content_script.js"] });
+    return await sendPostingListMessage(tab.id);
+  }
+}
+
+async function sendPostingListMessage(tabId) {
+  const response = await chrome.tabs.sendMessage(tabId, { type: "APPLICATION_DRAFT_LIST_POSTINGS" });
+  if (!response?.ok) throw new Error(response?.error || "Could not list job postings.");
+  return Array.isArray(response.postings) ? response.postings : [];
 }
 
 async function captureActivePage({ statusText = "Review the current page snapshot before drafting." } = {}) {
@@ -760,6 +842,36 @@ els.copy.addEventListener("click", async () => {
   setStatus("Copied draft.");
 });
 
+els.dicePostingList.addEventListener("change", updateDicePostingControls);
+
+els.dicePostingSelectAll.addEventListener("click", () => {
+  const selectedCount = selectedDicePostingIndexes().length;
+  const shouldSelect = selectedCount !== dicePostings.length;
+  els.dicePostingList.querySelectorAll('input[type="checkbox"]').forEach((input) => {
+    input.checked = shouldSelect;
+  });
+  updateDicePostingControls();
+});
+
+els.dicePostingOpenSelected.addEventListener("click", async () => {
+  const postings = selectedDicePostingIndexes().map((index) => dicePostings[index]);
+  if (!postings.length) return;
+  try {
+    els.dicePostingOpenSelected.disabled = true;
+    els.dicePostingStatus.textContent = "Opening tabs...";
+    for (const posting of postings) {
+      await chrome.tabs.create({ url: posting.url, active: false });
+    }
+    els.dicePostingStatus.textContent = `Opened ${postings.length} tab${postings.length === 1 ? "" : "s"}.`;
+    setStatus(`Opened ${postings.length} Dice posting${postings.length === 1 ? "" : "s"}.`);
+  } catch (error) {
+    els.dicePostingStatus.textContent = error.message || "Could not open selected postings.";
+    setStatus(error.message, "error");
+  } finally {
+    updateDicePostingControls();
+  }
+});
+
 els.settings.addEventListener("click", () => {
   chrome.runtime.openOptionsPage();
 });
@@ -799,6 +911,7 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
 async function initializePopup() {
   try {
     setStatus("Reading active page...");
+    await refreshDicePostingPicker().catch(() => clearDicePostingPicker());
     const opportunity = await extractProject();
     const state = await loadDraftState();
     if (state && samePageUrl(stateSourceUrl(state), opportunitySourceUrl(opportunity))) {
@@ -813,6 +926,7 @@ async function initializePopup() {
     await persistEditableSnapshot();
     setStatus("Review the current page snapshot before drafting.");
   } catch (error) {
+    await refreshDicePostingPicker().catch(() => clearDicePostingPicker());
     const restored = await restoreDraftState();
     if (restored) {
       setStatus(`Showing saved snapshot. ${error.message || "Active page could not be read."}`, "error");

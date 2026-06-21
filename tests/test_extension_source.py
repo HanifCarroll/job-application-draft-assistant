@@ -82,6 +82,41 @@ def test_dice_extraction_does_not_send_page_wide_text() -> None:
     assert "Mapbox or ESRI" not in dice_block
 
 
+def test_dice_search_posting_picker_uses_declared_link_contract() -> None:
+    content_script = (REPO_ROOT / "extension" / "content_script.js").read_text(encoding="utf-8")
+    popup_html = (REPO_ROOT / "extension" / "popup.html").read_text(encoding="utf-8")
+    popup_js = (REPO_ROOT / "extension" / "popup.js").read_text(encoding="utf-8")
+    dice_listing_block = content_script.split("function diceSearchResultPostings", 1)[1].split("function opportunity", 1)[0]
+
+    assert "APPLICATION_DRAFT_LIST_POSTINGS" in content_script
+    assert "globalThis.__applicationDraftAssistantListPostings = diceSearchResultPostings" in content_script
+    assert 'location.pathname !== "/jobs"' in dice_listing_block
+    assert 'querySelectorAll(\'[data-testid="job-search-job-detail-link"]\')' in dice_listing_block
+    assert "clean(link.textContent || \"\")" in dice_listing_block
+    assert "absoluteUrl(link.getAttribute(\"href\") || \"\")" in dice_listing_block
+    assert "seenUrls.has(url)" in dice_listing_block
+    assert "postings.push({ title, url })" in dice_listing_block
+    assert "innerText" not in dice_listing_block
+    assert "document.title" not in dice_listing_block
+    assert "[class*=" not in dice_listing_block
+
+    for field_id in [
+        "dice-posting-picker",
+        "dice-posting-summary",
+        "dice-posting-select-all",
+        "dice-posting-list",
+        "dice-posting-open-selected",
+        "dice-posting-status",
+    ]:
+        assert f'id="{field_id}"' in popup_html
+
+    assert "listActivePagePostings" in popup_js
+    assert "APPLICATION_DRAFT_LIST_POSTINGS" in popup_js
+    assert "renderDicePostingPicker" in popup_js
+    assert "chrome.tabs.create({ url: posting.url, active: false })" in popup_js
+    assert "Open selected" in popup_html
+
+
 def test_ziprecruiter_extraction_uses_selected_right_pane_contract() -> None:
     content_script = (REPO_ROOT / "extension" / "content_script.js").read_text(encoding="utf-8")
     zip_block = content_script.split("const zipRecruiterAdapter = {", 1)[1].split("const robertHalfAdapter = {", 1)[0]

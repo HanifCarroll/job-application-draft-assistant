@@ -150,6 +150,30 @@
     return unique(Array.from(skillsList.children).map((node) => clean(node.textContent || "")));
   }
 
+  function absoluteUrl(href) {
+    const value = clean(href);
+    if (!value) return "";
+    try {
+      return new URL(value, location.origin).href;
+    } catch (_error) {
+      return "";
+    }
+  }
+
+  function diceSearchResultPostings(root = document) {
+    if (!location.hostname.includes("dice.com") || location.pathname !== "/jobs") return [];
+    const seenUrls = new Set();
+    const postings = [];
+    for (const link of root.querySelectorAll('[data-testid="job-search-job-detail-link"]')) {
+      const title = clean(link.textContent || "");
+      const url = absoluteUrl(link.getAttribute("href") || "");
+      if (!title || !url || seenUrls.has(url)) continue;
+      seenUrls.add(url);
+      postings.push({ title, url });
+    }
+    return postings;
+  }
+
   function opportunity(source, values) {
     const description = clean(values.description);
     const skills = unique(values.skills || []);
@@ -469,14 +493,23 @@
   }
 
   globalThis.__applicationDraftAssistantExtract = extractOpportunity;
+  globalThis.__applicationDraftAssistantListPostings = diceSearchResultPostings;
 
   if (globalThis.chrome?.runtime?.onMessage) {
     chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-      if (message?.type !== "APPLICATION_DRAFT_EXTRACT") return false;
-      extractOpportunity()
-        .then((snapshot) => sendResponse({ ok: true, opportunity: snapshot }))
-        .catch((error) => sendResponse({ ok: false, error: error?.message || String(error) }));
-      return true;
+      if (message?.type === "APPLICATION_DRAFT_LIST_POSTINGS") {
+        Promise.resolve(diceSearchResultPostings())
+          .then((postings) => sendResponse({ ok: true, postings }))
+          .catch((error) => sendResponse({ ok: false, error: error?.message || String(error) }));
+        return true;
+      }
+      if (message?.type === "APPLICATION_DRAFT_EXTRACT") {
+        extractOpportunity()
+          .then((snapshot) => sendResponse({ ok: true, opportunity: snapshot }))
+          .catch((error) => sendResponse({ ok: false, error: error?.message || String(error) }));
+        return true;
+      }
+      return false;
     });
   }
 })();
