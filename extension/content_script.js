@@ -294,6 +294,7 @@
     await expandDetailsIfNeeded(detailsRoot);
     const skillsRoot = upworkSectionRoot("Skills and expertise");
     const viewPosting = upworkViewPostingLink(detailsRoot);
+    if (!viewPosting) return null;
     const title = firstText(['[data-test="job-title"]', '[data-test="job-details-title"]', '[role="heading"][aria-level="3"]', '[aria-level="3"]', 'h3', 'h4'], detailsRoot);
     const description = upworkApplyVisibleDescription(detailsRoot);
     return opportunity("upwork", {
@@ -375,6 +376,13 @@
     return { jobDetails, job };
   }
 
+  function upworkProposalDetailsState() {
+    const proposalDetails = globalThis.__NUXT__?.state?.["proposal-details"]?.proposalDetailsV3Response;
+    const job = proposalDetails?.jobDetails?.opening?.job;
+    if (!job) return null;
+    return { proposalDetails, job };
+  }
+
   function upworkStructuredSourceUrl(job, sourceCiphertext = "") {
     const ciphertext = clean(job?.info?.ciphertext || sourceCiphertext);
     if (ciphertext) return absoluteUrl(`/jobs/${ciphertext}`);
@@ -432,6 +440,64 @@
     });
   }
 
+  function upworkProposalDetailsOpportunity() {
+    const state = upworkProposalDetailsState();
+    if (!state) return null;
+    const { proposalDetails, job } = state;
+    const title = clean(job?.info?.title || job?.title || "");
+    const description = upworkCleanVisibleDescription(job?.description || "");
+    return opportunity("upwork", {
+      source_url: upworkStructuredSourceUrl(job),
+      title,
+      description,
+      skills: upworkSandsSkills(job?.sandsData || job?.sands || proposalDetails?.jobDetails?.sands),
+      extraction_warnings: [
+        ...(title ? [] : ["Upwork proposal-details job title was not found in Nuxt proposal state."]),
+        ...(description ? [] : ["Upwork proposal-details job description was not found in Nuxt proposal state."]),
+      ],
+    });
+  }
+
+  function upworkProposalDetailsRoot() {
+    return document.querySelector('[data-test="proposal-details"]');
+  }
+
+  function upworkProposalJobDetailsRoot() {
+    const root = upworkProposalDetailsRoot();
+    if (!root) return null;
+    const heading = Array.from(root.querySelectorAll("h2, [role=\"heading\"]")).find((node) => clean(node.textContent) === "Job details");
+    const header = heading?.closest("header");
+    const details = header?.nextElementSibling;
+    return details || heading?.parentElement || null;
+  }
+
+  function upworkProposalVisibleDescription(detailsRoot) {
+    const toggle = detailsRoot.querySelector('button[data-ev-label="truncation_toggle"]');
+    const descriptionRoot = toggle?.parentElement;
+    const description = upworkCleanVisibleDescription(descriptionRoot?.textContent || "");
+    if (description) return description;
+    return upworkDescription(detailsRoot);
+  }
+
+  async function upworkProposalVisibleOpportunity() {
+    const detailsRoot = upworkProposalJobDetailsRoot();
+    if (!detailsRoot) return null;
+    await expandDetailsIfNeeded(detailsRoot);
+    const title = firstText(['h3'], detailsRoot);
+    const description = upworkProposalVisibleDescription(detailsRoot);
+    const skills = upworkSkills(detailsRoot);
+    return opportunity("upwork", {
+      title,
+      description,
+      skills,
+      extraction_warnings: [
+        ...(title ? [] : ["Upwork proposal-details visible title was not found."]),
+        ...(description ? [] : ["Upwork proposal-details visible description was not found."]),
+        ...(skills.length ? [] : ["Upwork proposal-details visible skills were not found."]),
+      ],
+    });
+  }
+
   const upworkAdapter = {
     id: "upwork",
     matches: () => location.hostname.includes("upwork.com"),
@@ -444,13 +510,23 @@
         return jobDetailsStateOpportunity;
       }
 
+      const proposalDetailsStateOpportunity = upworkProposalDetailsOpportunity();
+      if (proposalDetailsStateOpportunity?.title && proposalDetailsStateOpportunity?.description && proposalDetailsStateOpportunity.skills.length) {
+        return proposalDetailsStateOpportunity;
+      }
+
       const visibleApplyOpportunity = await upworkApplyVisibleOpportunity();
       if (visibleApplyOpportunity) return visibleApplyOpportunity;
 
       const visibleJobDetailsOpportunity = upworkJobDetailsVisibleOpportunity();
       if (visibleJobDetailsOpportunity) return visibleJobDetailsOpportunity;
 
+      const visibleProposalDetailsOpportunity = await upworkProposalVisibleOpportunity();
+      if (visibleProposalDetailsOpportunity) return visibleProposalDetailsOpportunity;
+
       if (jobDetailsStateOpportunity) return jobDetailsStateOpportunity;
+
+      if (proposalDetailsStateOpportunity) return proposalDetailsStateOpportunity;
 
       const proposalDetails = proposalJobDetailsRoot();
       if (proposalDetails) {

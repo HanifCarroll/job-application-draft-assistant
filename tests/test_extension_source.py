@@ -104,6 +104,7 @@ def test_upwork_apply_page_uses_nuxt_job_apply_state() -> None:
     assert 'upworkSectionRoot("Skills and Expertise")' in upwork_block
     assert 'clean(node.textContent) === label' in upwork_block
     assert "upworkViewPostingLink(detailsRoot)" in upwork_block
+    assert "if (!viewPosting) return null" in upwork_block
     assert "upworkCleanVisibleDescription(sibling.textContent || \"\")" in upwork_block
     assert 'replace(/^Summary\\s*/, "")' in upwork_block
     assert "await expandDetailsIfNeeded(detailsRoot)" in upwork_block
@@ -120,6 +121,9 @@ def test_upwork_apply_page_uses_nuxt_job_apply_state() -> None:
     assert "globalThis.__NUXT__?.state?.jobDetails" in upwork_block
     assert "globalThis.__NUXT__?.vuex?.jobDetails" in upwork_block
     assert "jobDetails?.job" in upwork_block
+    assert "function upworkProposalDetailsState" in upwork_block
+    assert 'globalThis.__NUXT__?.state?.["proposal-details"]?.proposalDetailsV3Response' in upwork_block
+    assert "proposalDetails?.jobDetails?.opening?.job" in upwork_block
     assert "function upworkStructuredSourceUrl" in upwork_block
     assert "function upworkApplySourceUrl" in upwork_block
     assert 'a[data-test="open-original-posting"]' in upwork_block
@@ -138,15 +142,30 @@ def test_upwork_apply_page_uses_nuxt_job_apply_state() -> None:
     assert "function upworkJobDetailsOpportunity" in upwork_block
     assert "job?.title || jobDetails?.seo?.title" in upwork_block
     assert "upworkCleanVisibleDescription(job?.description || jobDetails?.seo?.description || \"\")" in upwork_block
+    assert "function upworkProposalDetailsOpportunity" in upwork_block
+    assert "job?.info?.title || job?.title" in upwork_block
+    assert "function upworkProposalDetailsRoot" in upwork_block
+    assert "document.querySelector('[data-test=\"proposal-details\"]')" in upwork_block
+    assert "function upworkProposalJobDetailsRoot" in upwork_block
+    assert 'clean(node.textContent) === "Job details"' in upwork_block
+    assert "heading?.closest(\"header\")" in upwork_block
+    assert "function upworkProposalVisibleDescription" in upwork_block
+    assert 'button[data-ev-label="truncation_toggle"]' in upwork_block
+    assert "function upworkProposalVisibleOpportunity" in upwork_block
     assert "const applyStateOpportunity = upworkApplyOpportunity()" in upwork_block
     assert "if (applyStateOpportunity) return applyStateOpportunity" in upwork_block
     assert "const jobDetailsStateOpportunity = upworkJobDetailsOpportunity()" in upwork_block
     assert "jobDetailsStateOpportunity?.title && jobDetailsStateOpportunity?.description && jobDetailsStateOpportunity.skills.length" in upwork_block
+    assert "const proposalDetailsStateOpportunity = upworkProposalDetailsOpportunity()" in upwork_block
+    assert "proposalDetailsStateOpportunity?.title && proposalDetailsStateOpportunity?.description && proposalDetailsStateOpportunity.skills.length" in upwork_block
     assert "const visibleApplyOpportunity = await upworkApplyVisibleOpportunity()" in upwork_block
     assert "if (visibleApplyOpportunity) return visibleApplyOpportunity" in upwork_block
     assert "const visibleJobDetailsOpportunity = upworkJobDetailsVisibleOpportunity()" in upwork_block
     assert "if (visibleJobDetailsOpportunity) return visibleJobDetailsOpportunity" in upwork_block
+    assert "const visibleProposalDetailsOpportunity = await upworkProposalVisibleOpportunity()" in upwork_block
+    assert "if (visibleProposalDetailsOpportunity) return visibleProposalDetailsOpportunity" in upwork_block
     assert "if (jobDetailsStateOpportunity) return jobDetailsStateOpportunity" in upwork_block
+    assert "if (proposalDetailsStateOpportunity) return proposalDetailsStateOpportunity" in upwork_block
     assert "Upwork apply-page job title was not found in Nuxt job state." in upwork_block
     assert "Upwork apply-page job description was not found in Nuxt job state." in upwork_block
     assert "Upwork apply-page visible job title was not found in the Job details section." in upwork_block
@@ -156,6 +175,11 @@ def test_upwork_apply_page_uses_nuxt_job_apply_state() -> None:
     assert "Upwork job-detail visible title was not found." in upwork_block
     assert "Upwork job-detail visible description was not found." in upwork_block
     assert "Upwork job-detail visible skills were not found." in upwork_block
+    assert "Upwork proposal-details job title was not found in Nuxt proposal state." in upwork_block
+    assert "Upwork proposal-details job description was not found in Nuxt proposal state." in upwork_block
+    assert "Upwork proposal-details visible title was not found." in upwork_block
+    assert "Upwork proposal-details visible description was not found." in upwork_block
+    assert "Upwork proposal-details visible skills were not found." in upwork_block
 
 
 def test_dice_search_posting_picker_uses_declared_link_contract() -> None:
@@ -449,6 +473,11 @@ def test_extension_wires_application_logging() -> None:
     assert "submitSelectors" in application_logger_js
     assert "confirmationSelectors" in application_logger_js
     assert "submitButtons" in application_logger_js
+    assert "Your proposal was submitted." in application_logger_js
+    assert 'data-test="proposal-details"' in application_logger_js
+    assert "/\\/nx\\/proposals\\/[^/?#]+\\/?\\?success$/" in application_logger_js
+    assert "pathWithSearch" in application_logger_js
+    assert "pattern.test(path) || pattern.test(pathWithSearch)" in application_logger_js
     assert "event.composedPath" in application_logger_js
     assert "matchesSubmitElement" in application_logger_js
     assert "scheduleLedgerBadgeRefresh(300, { force: true })" in application_logger_js

@@ -19,8 +19,9 @@
       confirmationSelectors: [
         { selector: '[data-test="proposal-submitted-message"]', text: "Your proposal has been submitted" },
         { selector: '[data-test="proposal-submitted"]', text: "Your proposal has been submitted" },
+        { selector: '[data-test="proposal-details"] [role="alert"] p', text: "Your proposal was submitted." },
       ],
-      confirmationPathPatterns: [/\/ab\/proposals\/submitted\/?$/],
+      confirmationPathPatterns: [/\/ab\/proposals\/submitted\/?$/, /\/nx\/proposals\/[^/?#]+\/?\?success$/],
     },
     {
       source: "dice",
@@ -112,7 +113,8 @@
 
   function pathConfirms(rule) {
     const path = location.pathname;
-    return (rule.confirmationPathPatterns || []).some((pattern) => pattern.test(path));
+    const pathWithSearch = `${location.pathname}${location.search}`;
+    return (rule.confirmationPathPatterns || []).some((pattern) => pattern.test(path) || pattern.test(pathWithSearch));
   }
 
   function buttonText(element) {
