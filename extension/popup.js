@@ -458,6 +458,10 @@ async function captureActivePage({ statusText = "Review the current page snapsho
   return opportunity;
 }
 
+function setSourceMode(source) {
+  document.body.dataset.sourceMode = String(source || "").trim().toLowerCase() === "upwork" ? "upwork" : "";
+}
+
 function fillOpportunity(opportunity) {
   els.source.value = opportunity.source || "";
   els.sourceUrl.value = opportunity.source_url || opportunity.url || "";
@@ -474,6 +478,7 @@ function fillOpportunity(opportunity) {
   els.niceToHaves.value = listToText(opportunity.nice_to_haves);
   els.questions.value = listToText(opportunity.application_questions);
   els.warnings.value = listToText(opportunity.extraction_warnings);
+  setSourceMode(els.source.value);
   syncSourceFields();
   setApplicationControls();
   scheduleApplicationLookup(0);
@@ -993,6 +998,9 @@ els.settings.addEventListener("click", () => {
 
 [els.source, els.sourceUrl, els.title, els.company, els.location, els.description, els.skills, els.employmentType, els.companyContext, els.recruiterContext, els.responsibilities, els.requirements, els.niceToHaves, els.questions, els.draftType, els.notes].forEach((element) => {
   element.addEventListener("input", scheduleEditableSnapshot);
+  element.addEventListener("input", () => {
+    if (element === els.source) setSourceMode(els.source.value);
+  });
   element.addEventListener("input", syncSourceFields);
   element.addEventListener("input", () => setPdfControls(currentPdf()));
   element.addEventListener("input", () => setApplicationControls());
@@ -1000,6 +1008,9 @@ els.settings.addEventListener("click", () => {
     if (element === els.sourceUrl) scheduleApplicationLookup();
   });
   element.addEventListener("change", scheduleEditableSnapshot);
+  element.addEventListener("change", () => {
+    if (element === els.source) setSourceMode(els.source.value);
+  });
   element.addEventListener("change", syncSourceFields);
   element.addEventListener("change", () => setPdfControls(currentPdf()));
   element.addEventListener("change", () => setApplicationControls());

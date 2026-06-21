@@ -243,32 +243,40 @@
 
   function upworkApplyState() {
     const jobApply = globalThis.__NUXT__?.state?.["job-apply"];
-    const job = jobApply?.jobDetails?.opening?.job;
+    const ciphertext = clean(jobApply?.ciphertext || "");
+    const cachedOpening = ciphertext ? jobApply?.openingsCache?.[ciphertext] : null;
+    const firstCachedOpening = Object.values(jobApply?.openingsCache || {})[0];
+    const job =
+      jobApply?.jobDetails?.opening?.job ||
+      jobApply?.originalOpening?.opening?.job ||
+      jobApply?.originalOpening?.job ||
+      cachedOpening?.opening?.job ||
+      cachedOpening?.job ||
+      firstCachedOpening?.opening?.job ||
+      firstCachedOpening?.job;
     if (!job) return null;
     return { jobApply, job };
   }
 
   function upworkJobDetailsState() {
-    const jobDetails = globalThis.__NUXT__?.vuex?.jobDetails;
+    const jobDetails = globalThis.__NUXT__?.state?.jobDetails || globalThis.__NUXT__?.vuex?.jobDetails;
     const job = jobDetails?.job;
     if (!job) return null;
     return { jobDetails, job };
   }
 
-  function upworkStructuredSourceUrl(job) {
-    const ciphertext = clean(job?.info?.ciphertext || "");
+  function upworkStructuredSourceUrl(job, sourceCiphertext = "") {
+    const ciphertext = clean(job?.info?.ciphertext || sourceCiphertext);
     if (ciphertext) return absoluteUrl(`/jobs/${ciphertext}`);
     const detailCiphertext = clean(job?.ciphertext || "");
     if (!detailCiphertext) return location.href;
     return absoluteUrl(`/jobs/${detailCiphertext}`);
   }
 
-  function upworkApplySourceUrl(job) {
+  function upworkApplySourceUrl(jobApply, job) {
     const originalPosting = absoluteUrl(document.querySelector('a[data-test="open-original-posting"]')?.getAttribute("href") || "");
     if (originalPosting) return originalPosting;
-    const ciphertext = clean(job?.info?.ciphertext || "");
-    if (!ciphertext) return upworkStructuredSourceUrl(job);
-    return absoluteUrl(`/jobs/${ciphertext}`);
+    return upworkStructuredSourceUrl(job, jobApply?.ciphertext || "");
   }
 
   function upworkSandsSkills(sandsData) {
@@ -278,23 +286,17 @@
     }));
   }
 
-  function upworkApplyLocation(jobApply) {
-    const countries = jobApply?.jobDetails?.opening?.qualifications?.countries;
-    return Array.isArray(countries) ? countries.map(clean).filter(Boolean).join(", ") : "";
-  }
-
   function upworkApplyOpportunity() {
     const state = upworkApplyState();
     if (!state) return null;
     const { jobApply, job } = state;
-    const title = clean(job?.info?.title || "");
+    const title = clean(job?.info?.title || job?.title || "");
     const description = clean(job?.description || "");
     return opportunity("upwork", {
-      source_url: upworkApplySourceUrl(job),
+      source_url: upworkApplySourceUrl(jobApply, job),
       title,
-      location: upworkApplyLocation(jobApply),
       description,
-      skills: upworkSandsSkills(job?.sandsData),
+      skills: upworkSandsSkills(job?.sandsData || job?.sands),
       extraction_warnings: [
         ...(title ? [] : ["Upwork apply-page job title was not found in Nuxt job state."]),
         ...(description ? [] : ["Upwork apply-page job description was not found in Nuxt job state."]),
@@ -312,7 +314,7 @@
       source_url: upworkStructuredSourceUrl(job),
       title,
       description,
-      skills: upworkSandsSkills(jobDetails?.sands),
+      skills: upworkSandsSkills(jobDetails?.sands || job?.sandsData || job?.sands),
       extraction_warnings: [
         ...(title ? [] : ["Upwork job-detail title was not found in Nuxt job state."]),
         ...(description ? [] : ["Upwork job-detail description was not found in Nuxt job state."]),

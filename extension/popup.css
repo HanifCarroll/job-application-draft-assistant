@@ -251,6 +251,11 @@ input[readonly] {
   display: none !important;
 }
 
+body[data-source-mode="upwork"] [data-hide-for-upwork],
+body[data-source-mode="upwork"] .source-field {
+  display: none !important;
+}
+
 button {
   border: 1px solid var(--border);
   border-radius: 7px;

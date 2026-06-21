@@ -92,23 +92,26 @@ def test_upwork_apply_page_uses_nuxt_job_apply_state() -> None:
     assert "function upworkApplyState" in upwork_block
     assert 'globalThis.__NUXT__?.state?.["job-apply"]' in upwork_block
     assert "jobApply?.jobDetails?.opening?.job" in upwork_block
+    assert "jobApply?.originalOpening?.opening?.job" in upwork_block
+    assert "jobApply?.openingsCache?.[ciphertext]" in upwork_block
+    assert "firstCachedOpening?.opening?.job" in upwork_block
     assert "function upworkJobDetailsState" in upwork_block
+    assert "globalThis.__NUXT__?.state?.jobDetails" in upwork_block
     assert "globalThis.__NUXT__?.vuex?.jobDetails" in upwork_block
     assert "jobDetails?.job" in upwork_block
     assert "function upworkStructuredSourceUrl" in upwork_block
     assert "function upworkApplySourceUrl" in upwork_block
     assert 'a[data-test="open-original-posting"]' in upwork_block
     assert "job?.info?.ciphertext" in upwork_block
+    assert "sourceCiphertext" in upwork_block
     assert 'return absoluteUrl(`/jobs/${ciphertext}`)' in upwork_block
     assert 'return absoluteUrl(`/jobs/${detailCiphertext}`)' in upwork_block
     assert "function upworkSandsSkills" in upwork_block
-    assert "upworkSandsSkills(job?.sandsData)" in upwork_block
+    assert "upworkSandsSkills(job?.sandsData || job?.sands)" in upwork_block
     assert "jobDetails?.sands" in upwork_block
     assert "skill?.children" in upwork_block
     assert "children.length ? children" in upwork_block
     assert "skill?.prefLabel || skill?.name" in upwork_block
-    assert "function upworkApplyLocation" in upwork_block
-    assert "qualifications?.countries" in upwork_block
     assert "function upworkApplyOpportunity" in upwork_block
     assert "function upworkJobDetailsOpportunity" in upwork_block
     assert "job?.title || jobDetails?.seo?.title" in upwork_block
@@ -322,6 +325,21 @@ def test_popup_uses_unified_source_aware_snapshot_form() -> None:
     assert "LOOKUP_APPLICATION" in popup_js
     assert "refreshApplicationLookup" in popup_js
     assert "Already in application ledger." in popup_js
+
+
+def test_popup_hides_non_proposal_fields_for_upwork() -> None:
+    popup_html = (REPO_ROOT / "extension" / "popup.html").read_text(encoding="utf-8")
+    popup_css = (REPO_ROOT / "extension" / "popup.css").read_text(encoding="utf-8")
+    popup_js = (REPO_ROOT / "extension" / "popup.js").read_text(encoding="utf-8")
+
+    assert 'class="grid" data-hide-for-upwork' in popup_html
+    assert '<label data-hide-for-upwork>\n        Source URL' in popup_html
+    assert '<label data-hide-for-upwork>\n        Draft type' in popup_html
+    assert 'body[data-source-mode="upwork"] [data-hide-for-upwork]' in popup_css
+    assert 'body[data-source-mode="upwork"] .source-field' in popup_css
+    assert "function setSourceMode(source)" in popup_js
+    assert 'document.body.dataset.sourceMode = String(source || "").trim().toLowerCase() === "upwork" ? "upwork" : ""' in popup_js
+    assert "setSourceMode(els.source.value)" in popup_js
 
 
 def test_popup_wires_cover_letter_pdf_controls() -> None:
