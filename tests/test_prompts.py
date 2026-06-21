@@ -10,7 +10,7 @@ from job_application_draft_assistant.drafts.prompts import build_draft_prompt
 SECTION_HEADINGS = {
     "Information rules:",
     "Writing rules:",
-    "Draft-type rules:",
+    "Draft rules:",
     "Explain experience simply:",
     "Audit fields only:",
     "Context packet:",
@@ -18,7 +18,7 @@ SECTION_HEADINGS = {
 
 APPLICANT_FACING_SECTIONS = [
     "Writing rules",
-    "Draft-type rules",
+    "Draft rules",
     "Explain experience simply",
 ]
 
@@ -41,13 +41,16 @@ BANNED_APPLICANT_FACING_TERMS = [
 
 def test_prompt_contract_includes_required_output_fields() -> None:
     prompt = _prompt()
+    upwork_prompt = _upwork_prompt()
 
     assert "information below" in prompt
     assert "Do not invent" in prompt
     assert "`draft_type`" in prompt
     assert "`draft_text`" in prompt
     assert "`cover_letter`" in prompt
-    assert "`upwork_proposal`" in prompt
+    assert "`upwork_proposal`" not in prompt
+    assert "`upwork_proposal`" in upwork_prompt
+    assert "`cover_letter`" not in upwork_prompt
     assert "`selected_angle.key`" in prompt
     assert "primary_text" not in prompt
     assert "`proposal`" not in prompt
@@ -64,34 +67,54 @@ def test_prompt_includes_resume_context_and_source_label() -> None:
 
 
 def test_prompt_contract_separates_applicant_copy_from_audit_fields() -> None:
+    for prompt in (_prompt(), _upwork_prompt()):
+        sections = _sections(prompt)
+        applicant_copy_sections = "\n".join(sections[name] for name in APPLICANT_FACING_SECTIONS)
+        audit_section = sections["Audit fields only"]
+
+        for term in BANNED_APPLICANT_FACING_TERMS:
+            assert term not in applicant_copy_sections.lower()
+
+        for field in REQUIRED_AUDIT_FIELDS:
+            assert field in audit_section
+
+        assert "where it came from" in audit_section
+        assert "applicant-facing draft" in audit_section
+
+
+def test_cover_letter_prompt_targets_job_platform_contracts() -> None:
     sections = _sections(_prompt())
-    applicant_copy_sections = "\n".join(sections[name] for name in APPLICANT_FACING_SECTIONS)
-    audit_section = sections["Audit fields only"]
-
-    for term in BANNED_APPLICANT_FACING_TERMS:
-        assert term not in applicant_copy_sections.lower()
-
-    for field in REQUIRED_AUDIT_FIELDS:
-        assert field in audit_section
-
-    assert "where it came from" in audit_section
-    assert "applicant-facing draft" in audit_section
-
-
-def test_draft_type_prompt_targets_job_platform_contracts() -> None:
-    sections = _sections(_prompt())
-    draft_type_rules = sections["Draft-type rules"]
+    draft_rules = sections["Draft rules"]
 
     for required in ["cover letter", "Dice", "Indeed", "ZipRecruiter", "real applicant", "plain language"]:
-        assert required in draft_type_rules
+        assert required in draft_rules
 
     for required in ["exactly match", "named tool or industry", "do not apologize", "closest real experience"]:
-        assert required in draft_type_rules
+        assert required in draft_rules
 
-    assert "Best,\nHanif Carroll" in draft_type_rules
-    assert "Upwork client" in draft_type_rules
-    assert "next-step question" in draft_type_rules
-    assert "compliance report" in draft_type_rules
+    assert "Best,\nHanif Carroll" in draft_rules
+    assert "Upwork client" not in draft_rules
+    assert "next-step question" not in draft_rules
+    assert "compliance report" in draft_rules
+    assert "Prefer framing like" not in "\n".join(sections.values())
+
+
+def test_upwork_prompt_targets_freelancer_proposal_contracts() -> None:
+    sections = _sections(_upwork_prompt())
+    draft_rules = sections["Draft rules"]
+    experience_rules = sections["Explain experience simply"]
+
+    for required in ["freelancer proposal", "Upwork client", "90-140 words", "3 short paragraphs maximum"]:
+        assert required in draft_rules
+
+    for required in ["preview-friendly", "Do not open with generic enthusiasm", "next-step question"]:
+        assert required in draft_rules
+
+    assert "job-board cover letter" in draft_rules
+    assert "signoff" in draft_rules
+    assert "Best,\nHanif Carroll" not in draft_rules
+    assert "Dice" not in draft_rules
+    assert "most relevant project example" in experience_rules
     assert "Prefer framing like" not in "\n".join(sections.values())
 
 
@@ -111,6 +134,21 @@ def test_draft_schema_rejects_old_output_fields() -> None:
 def _prompt() -> str:
     return build_draft_prompt(
         DraftRequest(opportunity=OpportunitySnapshot(source="dice", title="Software Engineer")),
+        ContextBundle(
+            profile="Product-minded full-stack engineer.",
+            resume=ResumeContext(text="Senior product engineer with Python systems work."),
+            offers=[],
+            projects=[],
+        ),
+    )
+
+
+def _upwork_prompt() -> str:
+    return build_draft_prompt(
+        DraftRequest(
+            opportunity=OpportunitySnapshot(source="upwork", title="Build a CMS website"),
+            draft_type="upwork_proposal",
+        ),
         ContextBundle(
             profile="Product-minded full-stack engineer.",
             resume=ResumeContext(text="Senior product engineer with Python systems work."),
