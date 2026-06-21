@@ -402,7 +402,7 @@ def test_extension_wires_application_logging() -> None:
     assert 'label === "Resume" || label.startsWith("Resume ")' in dice_wizard_assistant_js
     assert "function coverLetterAttachmentPresent" in dice_wizard_assistant_js
     assert "const coverLetter = coverLetterSection();" in dice_wizard_assistant_js
-    assert 'return /\\.pdf/i.test(text) && /\\bNew file\\b/i.test(text);' in dice_wizard_assistant_js
+    assert 'return /\\.pdf/i.test(text) && text.includes("New file");' in dice_wizard_assistant_js
     assert 'wizardButton("Next")' in dice_wizard_assistant_js
     assert 'wizardButton("Submit")' in dice_wizard_assistant_js
     assert "attempts >= AUTO_NEXT_MAX_ATTEMPTS" in dice_wizard_assistant_js

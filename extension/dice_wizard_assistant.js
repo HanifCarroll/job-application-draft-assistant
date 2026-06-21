@@ -418,7 +418,7 @@
     const coverLetter = coverLetterSection();
     if (!coverLetter) return false;
     const text = clean(coverLetter.textContent || "");
-    return /\.pdf/i.test(text) && /\bNew file\b/i.test(text);
+    return /\.pdf/i.test(text) && text.includes("New file");
   }
 
   function clickNextAfterCoverLetterIfReady() {
