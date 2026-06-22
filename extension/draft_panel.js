@@ -55,7 +55,6 @@ let pollToken = 0;
 let saveTimer = 0;
 let applicationLookupTimer = 0;
 let controlsBusy = false;
-let dicePostings = [];
 
 const STAGE_LABELS = {
   queued: "Queued",
@@ -178,14 +177,6 @@ function opportunitySourceUrl(opportunity) {
   return opportunity?.source_url || opportunity?.url || "";
 }
 
-function listToText(values) {
-  return (values || []).join("\n");
-}
-
-function textToList(value) {
-  return value.split(/\n+/).map((item) => item.trim()).filter(Boolean);
-}
-
 function clearDraftOutput() {
   els.proposal.value = "";
   els.audit.textContent = "";
@@ -201,101 +192,9 @@ function clearApplicationOutput() {
   setApplicationControls();
 }
 
-function clearDicePostingPicker() {
-  dicePostings = [];
-  els.dicePostingPicker.hidden = true;
-  els.dicePostingList.textContent = "";
-  els.dicePostingSummary.textContent = "0 Easy Apply";
-  els.dicePostingStatus.textContent = "";
-  els.dicePostingOpenSelected.disabled = true;
-  els.dicePostingNextPage.disabled = true;
-  els.dicePostingSelectAll.disabled = true;
-  els.dicePostingSelectAll.textContent = "Select all";
-}
-
-function selectedDicePostingIndexes() {
-  return Array.from(els.dicePostingList.querySelectorAll('input[type="checkbox"]:checked'))
-    .map((input) => Number(input.value))
-    .filter((index) => Number.isInteger(index) && index >= 0 && index < dicePostings.length);
-}
-
-function updateDicePostingControls() {
-  const selectedCount = selectedDicePostingIndexes().length;
-  const totalCount = dicePostings.length;
-  els.dicePostingOpenSelected.disabled = selectedCount === 0;
-  els.dicePostingSelectAll.disabled = totalCount === 0;
-  els.dicePostingSelectAll.textContent = selectedCount === totalCount && totalCount > 0 ? "Clear" : "Select all";
-  if (selectedCount) {
-    els.dicePostingStatus.textContent = `${selectedCount} selected`;
-  } else if (/^\d+ selected$/.test(els.dicePostingStatus.textContent)) {
-    els.dicePostingStatus.textContent = "";
-  }
-}
-
-function renderDicePostingPicker(postings, { showEmpty = false } = {}) {
-  dicePostings = postings.filter((posting) => posting?.title && posting?.url);
-  if (!dicePostings.length) {
-    if (!showEmpty) {
-      clearDicePostingPicker();
-      return;
-    }
-    els.dicePostingList.textContent = "";
-    els.dicePostingSummary.textContent = "0 Easy Apply";
-    els.dicePostingPicker.hidden = false;
-    els.dicePostingNextPage.disabled = false;
-    updateDicePostingControls();
-    return;
-  }
-
-  els.dicePostingList.textContent = "";
-  dicePostings.forEach((posting, index) => {
-    const row = document.createElement("label");
-    row.className = "posting-row";
-
-    const checkbox = document.createElement("input");
-    checkbox.type = "checkbox";
-    checkbox.value = String(index);
-
-    const title = document.createElement("span");
-    title.textContent = posting.title;
-
-    row.append(checkbox, title);
-    els.dicePostingList.append(row);
-  });
-
-  els.dicePostingSummary.textContent = `${dicePostings.length} Easy Apply`;
-  els.dicePostingPicker.hidden = false;
-  els.dicePostingNextPage.disabled = false;
-  updateDicePostingControls();
-}
-
-async function refreshDicePostingPicker() {
-  const tab = await activeTab();
-  if (!nextDiceResultsUrl(tab.url || "")) {
-    clearDicePostingPicker();
-    return;
-  }
-  const postings = await listPostingsFromTab(tab.id);
-  renderDicePostingPicker(postings, { showEmpty: true });
-}
-
 function setApplicationControls() {
   els.markApplied.disabled = controlsBusy || !els.sourceUrl.value.trim();
   els.markApplied.textContent = currentApplicationMatch ? "Refresh Log" : "Mark Applied";
-}
-
-function formatAppliedAt(value) {
-  if (!value) return "";
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return value.split("T", 1)[0];
-  return parsed.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
-}
-
-function applicationSummary(application) {
-  const appliedAt = formatAppliedAt(application?.applied_at || "");
-  const role = application?.title || "this role";
-  const company = application?.company ? ` at ${application.company}` : "";
-  return `${appliedAt ? `${appliedAt} · ` : ""}${role}${company}`;
 }
 
 async function updateDashboardLink() {
@@ -304,16 +203,14 @@ async function updateDashboardLink() {
 }
 
 function setAppliedIndicator(application) {
-  currentApplicationMatch = application || null;
-  if (!application) {
-    els.appliedIndicator.hidden = true;
-    els.appliedSummary.textContent = "";
-    setApplicationControls();
-    return;
-  }
-  els.appliedSummary.textContent = applicationSummary(application);
-  els.appliedIndicator.hidden = false;
-  setApplicationControls();
+  globalThis.JobApplicationStatusUi.setAppliedIndicator({
+    els,
+    application,
+    setCurrentApplicationMatch: (nextApplication) => {
+      currentApplicationMatch = nextApplication;
+    },
+    setApplicationControls,
+  });
 }
 
 async function lookupApplication(sourceUrl) {
@@ -354,9 +251,29 @@ async function activeTab() {
   return tab;
 }
 
+async function injectContentScripts(tabId) {
+  await globalThis.JobApplicationContentScripts.inject(tabId);
+}
+
+const draftForm = globalThis.JobApplicationDraftForm.create({
+  els,
+  supportedDraftTypes: SUPPORTED_DRAFT_TYPES,
+  setApplicationControls,
+  scheduleApplicationLookup,
+});
+const { fillOpportunity, fillRequest, readRequest, setSourceMode, syncSourceFields } = draftForm;
+
+const dicePostingPicker = globalThis.JobApplicationDicePostingPicker.create({
+  els,
+  activeTab,
+  injectContentScripts,
+  setStatus,
+  sleep,
+});
+
 async function extractProject() {
   const tab = await activeTab();
-  await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ["content_script.js"] });
+  await injectContentScripts(tab.id);
   return executeExtractor(tab.id);
 }
 
@@ -380,79 +297,12 @@ async function executeExtractor(tabId) {
   return response.opportunity;
 }
 
-async function listActivePagePostings() {
-  const tab = await activeTab();
-  return listPostingsFromTab(tab.id);
+function clearDicePostingPicker() {
+  dicePostingPicker.clear();
 }
 
-async function listPostingsFromTab(tabId) {
-  try {
-    return await sendPostingListMessage(tabId);
-  } catch (_err) {
-    await chrome.scripting.executeScript({ target: { tabId }, files: ["content_script.js"] });
-    return await sendPostingListMessage(tabId);
-  }
-}
-
-async function sendPostingListMessage(tabId) {
-  const response = await chrome.tabs.sendMessage(tabId, { type: "APPLICATION_DRAFT_LIST_POSTINGS" });
-  if (!response?.ok) throw new Error(response?.error || "Could not list job postings.");
-  return Array.isArray(response.postings) ? response.postings : [];
-}
-
-async function waitForTabComplete(tabId, timeoutMs = 15000) {
-  const startedAt = Date.now();
-  while (Date.now() - startedAt < timeoutMs) {
-    const tab = await chrome.tabs.get(tabId);
-    if (tab?.status === "complete") return;
-    await sleep(250);
-  }
-  throw new Error("Opened tab did not finish loading.");
-}
-
-function nextDiceResultsUrl(value) {
-  try {
-    const url = new URL(value);
-    if (!url.hostname.includes("dice.com") || url.pathname !== "/jobs") return "";
-    const currentPage = Number.parseInt(url.searchParams.get("page") || "1", 10);
-    url.searchParams.set("page", String(Number.isFinite(currentPage) && currentPage > 0 ? currentPage + 1 : 2));
-    return url.href;
-  } catch (_error) {
-    return "";
-  }
-}
-
-async function advanceActiveDiceResultsPage() {
-  const tab = await activeTab();
-  if (!tab.id) throw new Error("No active Dice results tab found.");
-  const nextUrl = nextDiceResultsUrl(tab.url || "");
-  if (!nextUrl) throw new Error("The active tab is not a Dice results page.");
-  await chrome.tabs.update(tab.id, { url: nextUrl });
-  await waitForTabComplete(tab.id);
-  await refreshDicePostingPicker();
-}
-
-async function clickDiceEasyApplyInTab(tabId) {
-  try {
-    return await sendClickDiceEasyApplyMessage(tabId);
-  } catch (_err) {
-    await chrome.scripting.executeScript({ target: { tabId }, files: ["content_script.js"] });
-    return await sendClickDiceEasyApplyMessage(tabId);
-  }
-}
-
-async function sendClickDiceEasyApplyMessage(tabId) {
-  const response = await chrome.tabs.sendMessage(tabId, { type: "APPLICATION_DRAFT_CLICK_DICE_EASY_APPLY" });
-  if (!response?.ok) throw new Error(response?.error || "Could not click Dice Easy Apply.");
-  if (!response.clicked) throw new Error(response.error || "Dice Easy Apply control was not found.");
-  return response;
-}
-
-async function openPostingAndClickEasyApply(posting) {
-  const tab = await chrome.tabs.create({ url: posting.url, active: false });
-  if (!tab?.id) throw new Error("Could not open Dice posting tab.");
-  await waitForTabComplete(tab.id);
-  return clickDiceEasyApplyInTab(tab.id);
+async function refreshDicePostingPicker() {
+  await dicePostingPicker.refresh();
 }
 
 async function captureActivePage({ statusText = "Review the current page snapshot before drafting." } = {}) {
@@ -465,87 +315,6 @@ async function captureActivePage({ statusText = "Review the current page snapsho
   await persistEditableSnapshot();
   setStatus(statusText);
   return opportunity;
-}
-
-function setSourceMode(source) {
-  document.body.dataset.sourceMode = String(source || "").trim().toLowerCase() === "upwork" ? "upwork" : "";
-}
-
-function fillOpportunity(opportunity) {
-  els.source.value = opportunity.source || "";
-  els.sourceUrl.value = opportunity.source_url || opportunity.url || "";
-  els.title.value = opportunity.title || "";
-  els.company.value = opportunity.company || "";
-  els.location.value = opportunity.location || "";
-  els.description.value = opportunity.description || "";
-  els.skills.value = (opportunity.skills || []).join(", ");
-  els.employmentType.value = opportunity.employment_type || "";
-  els.companyContext.value = opportunity.company_context || "";
-  els.recruiterContext.value = opportunity.recruiter_or_client_context || opportunity.client_context || "";
-  els.responsibilities.value = listToText(opportunity.responsibilities);
-  els.requirements.value = listToText(opportunity.requirements);
-  els.niceToHaves.value = listToText(opportunity.nice_to_haves);
-  els.questions.value = listToText(opportunity.application_questions);
-  els.warnings.value = listToText(opportunity.extraction_warnings);
-  setSourceMode(els.source.value);
-  syncSourceFields();
-  setApplicationControls();
-  scheduleApplicationLookup(0);
-  if (opportunity.source === "upwork") {
-    els.draftType.value = "upwork_proposal";
-  } else {
-    els.draftType.value = "cover_letter";
-  }
-}
-
-function fillRequest(request) {
-  fillOpportunity(request.opportunity || request.project || {});
-  if (SUPPORTED_DRAFT_TYPES.has(request.draft_type)) {
-    els.draftType.value = request.draft_type;
-  }
-  els.notes.value = request.user_notes || "";
-}
-
-function readRequest() {
-  const skills = els.skills.value.split(",").map((skill) => skill.trim()).filter(Boolean);
-  const responsibilities = textToList(els.responsibilities.value);
-  const requirements = textToList(els.requirements.value);
-  const niceToHaves = textToList(els.niceToHaves.value);
-  const questions = textToList(els.questions.value);
-  const warnings = textToList(els.warnings.value);
-  const companyContext = els.companyContext.value.trim();
-  const recruiterContext = els.recruiterContext.value.trim();
-  const opportunity = {
-    source: els.source.value.trim() || "manual",
-    source_url: els.sourceUrl.value.trim(),
-    captured_at: new Date().toISOString(),
-    title: els.title.value.trim(),
-    company: els.company.value.trim(),
-    location: els.location.value.trim(),
-    employment_type: els.employmentType.value.trim(),
-    description: els.description.value.trim(),
-    responsibilities,
-    requirements,
-    nice_to_haves: niceToHaves,
-    skills,
-    application_questions: questions,
-    company_context: companyContext,
-    recruiter_or_client_context: recruiterContext,
-    extraction_warnings: warnings,
-  };
-  return {
-    opportunity,
-    draft_type: els.draftType.value,
-    user_notes: els.notes.value.trim(),
-    style: "concise",
-  };
-}
-
-function syncSourceFields() {
-  document.querySelectorAll("[data-show-when-filled]").forEach((element) => {
-    const input = document.querySelector(element.dataset.showWhenFilled || "");
-    element.classList.toggle("is-hidden", !input?.value.trim());
-  });
 }
 
 async function currentPageRequest() {
@@ -592,28 +361,20 @@ function currentDraftJobId() {
 }
 
 function currentPdf() {
-  const pdf = currentState?.pdf;
-  if (!pdf || pdf.draft_id !== currentDraftId()) return null;
-  return pdf;
+  return globalThis.JobApplicationPdfControls.currentPdf(currentState, currentDraftId());
 }
 
 function canGeneratePdf() {
-  return Boolean(currentDraftId()) && els.draftType.value === "cover_letter";
+  return globalThis.JobApplicationPdfControls.canGeneratePdf(currentDraftId(), els.draftType.value);
 }
 
 function setPdfControls(pdf) {
-  const canExport = canGeneratePdf();
-  const pdfStatus = currentState?.pdf_status || "";
-  const isGenerating = pdfStatus === "generating";
-  els.generatePdf.disabled = !canExport || isGenerating;
-  els.openPdfFolder.disabled = !canExport || isGenerating || !pdf;
-  if (isGenerating) {
-    els.pdfStatus.textContent = "Generating PDF...";
-  } else if (pdfStatus === "failed") {
-    els.pdfStatus.textContent = currentState?.pdf_error ? `PDF failed: ${currentState.pdf_error}` : "PDF failed.";
-  } else {
-    els.pdfStatus.textContent = pdf?.filename ? `PDF: ${pdf.filename}` : "";
-  }
+  globalThis.JobApplicationPdfControls.setPdfControls({
+    els,
+    currentState,
+    pdf,
+    canExport: canGeneratePdf(),
+  });
 }
 
 function renderDraft(job, draft) {
@@ -833,15 +594,12 @@ els.draft.addEventListener("click", async () => {
 });
 
 function buildApplicationLogRequest() {
-  const request = readRequest();
-  return {
-    opportunity: request.opportunity,
-    applied_at: nowIso(),
-    draft_id: currentDraftId(),
-    draft_job_id: currentDraftJobId(),
-    detected_by: "manual",
-    warnings: [],
-  };
+  return globalThis.JobApplicationStatusUi.buildApplicationLogRequest({
+    readRequest,
+    nowIso,
+    currentDraftId,
+    currentDraftJobId,
+  });
 }
 
 async function logApplication(request) {
@@ -879,18 +637,15 @@ els.markApplied.addEventListener("click", async () => {
 });
 
 async function startPdfExport(draftId) {
-  const response = await chrome.runtime.sendMessage({ type: "START_PDF_EXPORT", draft_id: draftId });
-  if (!response?.ok) throw new Error(response?.error || "Could not generate PDF.");
-  return response.state;
+  return globalThis.JobApplicationPdfControls.startPdfExport(draftId);
 }
 
 async function revealPdf(draftId) {
-  const apiBase = await backendUrl();
-  const response = await fetch(`${apiBase}/drafts/${encodeURIComponent(draftId)}/pdf/reveal`, { method: "POST" });
-  if (!response.ok) {
-    throw new Error(await responseErrorMessage(response));
-  }
-  return response.json();
+  return globalThis.JobApplicationPdfControls.revealPdf({
+    draftId,
+    backendUrl,
+    responseErrorMessage,
+  });
 }
 
 els.generatePdf.addEventListener("click", async () => {
@@ -935,71 +690,7 @@ els.copy.addEventListener("click", async () => {
   setStatus("Copied draft.");
 });
 
-els.dicePostingList.addEventListener("change", updateDicePostingControls);
-
-els.dicePostingSelectAll.addEventListener("click", () => {
-  const selectedCount = selectedDicePostingIndexes().length;
-  const shouldSelect = selectedCount !== dicePostings.length;
-  els.dicePostingList.querySelectorAll('input[type="checkbox"]').forEach((input) => {
-    input.checked = shouldSelect;
-  });
-  updateDicePostingControls();
-});
-
-els.dicePostingNextPage.addEventListener("click", async () => {
-  try {
-    els.dicePostingNextPage.disabled = true;
-    els.dicePostingStatus.textContent = "Loading next page...";
-    await advanceActiveDiceResultsPage();
-    els.dicePostingStatus.textContent = `${dicePostings.length} Easy Apply on this page.`;
-    setStatus("Loaded next Dice results page.");
-  } catch (error) {
-    els.dicePostingStatus.textContent = error.message || "Could not load the next page.";
-    setStatus(error.message, "error");
-  } finally {
-    if (!els.dicePostingPicker.hidden) {
-      els.dicePostingNextPage.disabled = false;
-    }
-    updateDicePostingControls();
-  }
-});
-
-els.dicePostingOpenSelected.addEventListener("click", async () => {
-  const postings = selectedDicePostingIndexes().map((index) => dicePostings[index]);
-  if (!postings.length) return;
-  const failures = [];
-  try {
-    els.dicePostingOpenSelected.disabled = true;
-    els.dicePostingStatus.textContent = `Opening ${postings.length} tab${postings.length === 1 ? "" : "s"}...`;
-    const results = await Promise.all(postings.map(async (posting) => {
-      try {
-        await openPostingAndClickEasyApply(posting);
-        return null;
-      } catch (error) {
-        return `${posting.title}: ${error.message || "Easy Apply was not clicked."}`;
-      }
-    }));
-    failures.push(...results.filter(Boolean));
-    const clickedCount = postings.length - failures.length;
-    if (clickedCount > 0) {
-      els.dicePostingStatus.textContent = "Loading next page...";
-      await advanceActiveDiceResultsPage();
-    }
-    if (failures.length) {
-      const nextPageText = clickedCount > 0 ? " Next page loaded." : "";
-      els.dicePostingStatus.textContent = `Started ${clickedCount}; ${failures.length} failed.${nextPageText}`;
-      setStatus(failures[0], "error");
-    } else {
-      els.dicePostingStatus.textContent = `Started ${clickedCount} Easy Apply flow${clickedCount === 1 ? "" : "s"}. Next page loaded.`;
-      setStatus(`Started ${clickedCount} Dice Easy Apply flow${clickedCount === 1 ? "" : "s"} and loaded the next page.`);
-    }
-  } catch (error) {
-    els.dicePostingStatus.textContent = error.message || "Could not open selected postings.";
-    setStatus(error.message, "error");
-  } finally {
-    updateDicePostingControls();
-  }
-});
+dicePostingPicker.attachEvents();
 
 els.settings.addEventListener("click", () => {
   chrome.runtime.openOptionsPage();

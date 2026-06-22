@@ -10,6 +10,7 @@
   const AUTO_NEXT_MAX_ATTEMPTS = 3;
   const AUTO_SUBMIT_KEY = "jobApplicationDiceSubmitAutoClicked";
   const COVER_LETTER_SELECTOR = '[data-testid="cover-letter"]';
+  const diceOpportunity = globalThis.JobApplicationDiceOpportunity;
 
   function clean(text) {
     return (text || "").replace(/\s+/g, " ").trim();
@@ -273,117 +274,9 @@
   }
 
   async function diceDetailOpportunity(jobId) {
-    const sourceUrl = new URL(`/job-detail/${jobId}`, location.origin).href;
-    const response = await fetch(sourceUrl, { credentials: "include" });
-    if (!response.ok) throw new Error(`Could not read Dice job details: ${response.status}`);
-    const documentText = await response.text();
-    const parsed = new DOMParser().parseFromString(documentText, "text/html");
-    const job = jobPostingJsonLd(parsed);
-    if (!job?.title) throw new Error("Dice structured job details were not found.");
-    const company = orgName(job.hiringOrganization);
-    return {
-      source: "dice",
-      source_url: clean(job.url) || sourceUrl,
-      captured_at: new Date().toISOString(),
-      title: clean(job.title),
-      company,
-      location: diceLocationFromJsonLd(job),
-      employment_type: diceEmploymentTypeFromJsonLd(job),
-      description: htmlToText(job.description),
-      responsibilities: [],
-      requirements: [],
-      nice_to_haves: [],
-      skills: unique([
-        ...jsonLdStringList(job.skills),
-        ...jsonLdStringList(job.occupationalCategory),
-      ]),
-      application_questions: [],
-      company_context: "",
-      recruiter_or_client_context: "",
-      extraction_warnings: company ? [] : ["Dice structured job details did not include company."],
-    };
-  }
-
-  function jobPostingJsonLd(root) {
-    return jsonLdObjects(root).find((item) => {
-      const type = item["@type"];
-      return type === "JobPosting" || (Array.isArray(type) && type.includes("JobPosting"));
-    });
-  }
-
-  function jsonLdObjects(root) {
-    const values = [];
-    for (const script of root.querySelectorAll('script[type="application/ld+json"]')) {
-      try {
-        const parsed = JSON.parse(script.textContent || "null");
-        values.push(...flattenJsonLd(parsed));
-      } catch (_error) {
-        // Ignore malformed structured data from third-party pages.
-      }
-    }
-    return values;
-  }
-
-  function flattenJsonLd(value) {
-    if (!value) return [];
-    if (Array.isArray(value)) return value.flatMap(flattenJsonLd);
-    if (typeof value !== "object") return [];
-    const graph = Array.isArray(value["@graph"]) ? value["@graph"].flatMap(flattenJsonLd) : [];
-    return [value, ...graph];
-  }
-
-  function jsonLdStringList(value) {
-    if (!value) return [];
-    if (Array.isArray(value)) return value.flatMap(jsonLdStringList);
-    if (typeof value === "object") return [value.name, value.value, value.termCode].flatMap(jsonLdStringList);
-    return clean(String(value)).split(/[,;|]/).map(clean).filter(Boolean);
-  }
-
-  function orgName(value) {
-    if (!value) return "";
-    if (Array.isArray(value)) return orgName(value[0]);
-    if (typeof value === "object") return clean(value.name || "");
-    return clean(String(value));
-  }
-
-  function diceLocationFromJsonLd(job) {
-    const requirements = job?.applicantLocationRequirements;
-    const jobLocation = Array.isArray(job?.jobLocation) ? job.jobLocation[0] : job?.jobLocation;
-    const address = jobLocation?.address;
-    return clean(
-      [
-        job?.jobLocationType === "TELECOMMUTE" ? "Remote" : "",
-        orgName(requirements),
-        address?.addressLocality,
-        address?.addressRegion,
-        address?.addressCountry,
-      ]
-        .filter(Boolean)
-        .join(", ")
-    );
-  }
-
-  function diceEmploymentTypeFromJsonLd(job) {
-    const value = jsonLdStringList(job?.employmentType).join(" ");
-    if (!value) return "";
-    const normalized = value.toUpperCase().replace(/[_\s]+/g, "_");
-    const labels = {
-      CONTRACTOR: "Contract",
-      TEMPORARY: "Contract",
-      FULL_TIME: "Full-time",
-      PART_TIME: "Part-time",
-    };
-    return labels[normalized] || clean(value);
-  }
-
-  function htmlToText(html) {
-    const template = document.createElement("template");
-    template.innerHTML = html || "";
-    return clean(template.content.textContent || "");
-  }
-
-  function unique(values) {
-    return Array.from(new Set(values.map(clean).filter(Boolean)));
+    const opportunity = await diceOpportunity.detailOpportunity(jobId);
+    if (!opportunity) throw new Error("Dice structured job details were not found.");
+    return opportunity;
   }
 
   function sleep(ms) {

@@ -1,0 +1,86 @@
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+EXTENSION = REPO_ROOT / "extension"
+
+
+def read(path: str) -> str:
+    return (EXTENSION / path).read_text(encoding="utf-8")
+
+
+def test_application_logger_loads_after_ledger_badge_and_uses_shared_dice_capture() -> None:
+    manifest = json.loads((EXTENSION / "manifest.json").read_text(encoding="utf-8"))
+    scripts = manifest["content_scripts"][0]["js"]
+    logger = read("application_logger.js")
+    badge = read("application/ledger_badge.js")
+
+    assert scripts.index("application/ledger_badge.js") < scripts.index("application_logger.js")
+    assert scripts.index("platforms/dice_opportunity.js") < scripts.index("application_logger.js")
+    assert "JobApplicationLedgerBadge" in badge
+    assert "job-application-ledger-badge" in badge
+    assert "visibleSourceUrl" in badge
+
+    assert "const diceOpportunity = globalThis.JobApplicationDiceOpportunity" in logger
+    assert "const ledgerBadge = globalThis.JobApplicationLedgerBadge" in logger
+    assert "diceOpportunity.detailOpportunity" in logger
+    assert "diceOpportunity.wizardPageOpportunity" in logger
+    assert "function jobPostingJsonLd" not in logger
+    assert 'script[type="application/ld+json"]' not in logger
+    assert "function setLedgerBadge" not in logger
+
+
+def test_application_logger_detects_submit_and_confirmation_contracts() -> None:
+    logger = read("application_logger.js")
+    background = read("background.js")
+
+    assert "APPLICATION_CAPTURE_PENDING" in background
+    assert "APPLICATION_CONFIRMED" in background
+    assert "closeTabSoon" in background
+    assert "chrome.tabs.remove(tabId)" in background
+    assert "message.close_tab && _sender.tab?.id" in background
+    assert "LOOKUP_APPLICATION" in background
+    assert "Backend offline. Start it with: uv --no-config run jada serve" in background
+    assert "APPLICATION_QUEUE_KEY" in background
+    assert "/applications" in background
+    assert "/applications/lookup" in background
+    assert "message.opportunity || pending?.opportunity" in background
+
+    assert "submitSelectors" in logger
+    assert "confirmationSelectors" in logger
+    assert "submitButtons" in logger
+    assert "event.composedPath" in logger
+    assert "matchesSubmitElement" in logger
+    assert "scheduleLedgerBadgeRefresh(300, { force: true })" in logger
+    assert "attributeFilter" in logger
+    for attribute_name in ["applied", "selected", "destination", "headline", "cta-type"]:
+        assert f'"{attribute_name}"' in logger
+    assert "(rule.confirmationSelectors || []).some" in logger
+    assert "(rule.confirmationPathPatterns || []).some" in logger
+
+
+def test_application_logger_tracks_current_upwork_dice_and_other_success_states() -> None:
+    logger = read("application_logger.js")
+
+    assert "Your proposal was submitted." in logger
+    assert 'data-test="proposal-details"' in logger
+    assert "/\\/nx\\/proposals\\/[^/?#]+\\/?\\?success$/" in logger
+    assert "pathWithSearch" in logger
+    assert "pattern.test(path) || pattern.test(pathWithSearch)" in logger
+    assert '/\\/job-applications\\/[^/]+\\/wizard\\/success\\/?$/' in logger
+    assert 'close_tab: rule.source === "dice" && pathConfirms(rule)' in logger
+    assert 'button[aria-label="1-Click Apply"]' in logger
+    assert 'button[aria-label="Quick Apply"]' in logger
+    assert '{ selector: \'button[type="button"]\', text: "Submit" }' in logger
+    assert "Your application was submitted!" in logger
+    assert 'button[aria-label="Applied"]' in logger
+    assert 'button[aria-label="Quick apply"]' in logger
+    assert 'rhcl-button[component-title="Quick apply"]' in logger
+    assert 'rhcl-job-card[data-testid="job-details"][cta-type="quick-apply"]' in logger
+    assert 'rhcl-job-card[data-testid="job-details"][applied=""]' in logger
+    assert 'rhcl-job-card[data-testid="job-details"][applied="true"]' in logger
+    assert 'rhcl-job-card[selected="true"][applied=""]' in logger
+    assert 'rhcl-job-card[selected="true"][applied="true"]' in logger

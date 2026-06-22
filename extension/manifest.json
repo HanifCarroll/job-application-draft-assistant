@@ -43,7 +43,19 @@
         "https://www.roberthalf.com/*",
         "https://*.roberthalf.com/*"
       ],
-      "js": ["content_script.js", "application_logger.js", "dice_wizard_assistant.js"],
+      "js": [
+        "extractors/common.js",
+        "platforms/dice_opportunity.js",
+        "extractors/upwork.js",
+        "extractors/dice.js",
+        "extractors/indeed.js",
+        "extractors/ziprecruiter.js",
+        "extractors/roberthalf.js",
+        "content_script.js",
+        "application/ledger_badge.js",
+        "application_logger.js",
+        "dice_wizard_assistant.js"
+      ],
       "run_at": "document_idle"
     }
   ]

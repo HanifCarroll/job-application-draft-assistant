@@ -5,7 +5,8 @@
   globalThis.__jobApplicationLoggerLoaded = true;
 
   const CONFIRMED_KEY = "jobApplicationLoggerConfirmed";
-  const LEDGER_BADGE_ID = "job-application-ledger-badge";
+  const diceOpportunity = globalThis.JobApplicationDiceOpportunity;
+  const ledgerBadge = globalThis.JobApplicationLedgerBadge;
 
   const PLATFORM_RULES = [
     {
@@ -142,204 +143,7 @@
   async function diceWizardOpportunity() {
     const wizardMatch = location.pathname.match(/^\/job-applications\/([^/]+)\/wizard(?:\/success)?\/?$/);
     if (!wizardMatch) return null;
-    return (await diceDetailOpportunity(wizardMatch[1])) || diceWizardPageOpportunity(wizardMatch[1]);
-  }
-
-  function diceWizardPageOpportunity(jobId) {
-    const detailLink = document.querySelector(`a[href="/job-detail/${jobId}"], a[href^="/job-detail/${jobId}?"]`);
-    const sourceUrl = new URL(detailLink?.getAttribute("href") || `/job-detail/${jobId}`, location.origin).href;
-    if (!detailLink) return null;
-    const title = clean(detailLink.textContent || "");
-    if (!title) return null;
-    const headerText = diceWizardHeaderText(detailLink);
-    const detailMatch = headerText.match(/^(.+?)\s*@\s*(.+?)\s+in\s+(.+)$/);
-    return {
-      source: "dice",
-      source_url: sourceUrl,
-      captured_at: new Date().toISOString(),
-      title,
-      company: clean(detailMatch?.[2] || ""),
-      location: clean(detailMatch?.[3] || ""),
-      employment_type: "",
-      description: "",
-      responsibilities: [],
-      requirements: [],
-      nice_to_haves: [],
-      skills: [],
-      application_questions: [],
-      company_context: "",
-      recruiter_or_client_context: "",
-      extraction_warnings: detailMatch ? [] : ["Dice application wizard header did not expose company and location."],
-    };
-  }
-
-  async function diceDetailOpportunity(jobId) {
-    const sourceUrl = new URL(`/job-detail/${jobId}`, location.origin).href;
-    try {
-      const response = await fetch(sourceUrl, { credentials: "include" });
-      if (!response.ok) return null;
-      const documentText = await response.text();
-      const parsed = new DOMParser().parseFromString(documentText, "text/html");
-      const job = jobPostingJsonLd(parsed);
-      if (!job?.title) return null;
-      const company = orgName(job.hiringOrganization);
-      return {
-        source: "dice",
-        source_url: clean(job.url) || sourceUrl,
-        captured_at: new Date().toISOString(),
-        title: clean(job.title),
-        company,
-        location: diceLocationFromJsonLd(job),
-        employment_type: diceEmploymentTypeFromJsonLd(job),
-        description: htmlToText(job.description),
-        responsibilities: [],
-        requirements: [],
-        nice_to_haves: [],
-        skills: unique([
-          ...jsonLdStringList(job.skills),
-          ...jsonLdStringList(job.occupationalCategory),
-        ]),
-        application_questions: [],
-        company_context: "",
-        recruiter_or_client_context: "",
-        extraction_warnings: company ? [] : ["Dice structured job details did not include company."],
-      };
-    } catch (_error) {
-      return null;
-    }
-  }
-
-  function jobPostingJsonLd(root) {
-    return jsonLdObjects(root).find((item) => {
-      const type = item["@type"];
-      return type === "JobPosting" || (Array.isArray(type) && type.includes("JobPosting"));
-    });
-  }
-
-  function jsonLdObjects(root) {
-    const values = [];
-    for (const script of root.querySelectorAll('script[type="application/ld+json"]')) {
-      try {
-        const parsed = JSON.parse(script.textContent || "null");
-        values.push(...flattenJsonLd(parsed));
-      } catch (_error) {
-        // Ignore malformed structured data from third-party pages.
-      }
-    }
-    return values;
-  }
-
-  function flattenJsonLd(value) {
-    if (!value) return [];
-    if (Array.isArray(value)) return value.flatMap(flattenJsonLd);
-    if (typeof value !== "object") return [];
-    const graph = Array.isArray(value["@graph"]) ? value["@graph"].flatMap(flattenJsonLd) : [];
-    return [value, ...graph];
-  }
-
-  function jsonLdStringList(value) {
-    if (!value) return [];
-    if (Array.isArray(value)) return value.flatMap(jsonLdStringList);
-    if (typeof value === "object") return [value.name, value.value, value.termCode].flatMap(jsonLdStringList);
-    return clean(String(value)).split(/[,;|]/).map(clean).filter(Boolean);
-  }
-
-  function orgName(value) {
-    if (!value) return "";
-    if (Array.isArray(value)) return orgName(value[0]);
-    if (typeof value === "object") return clean(value.name || "");
-    return clean(String(value));
-  }
-
-  function diceLocationFromJsonLd(job) {
-    const requirements = job?.applicantLocationRequirements;
-    const jobLocation = Array.isArray(job?.jobLocation) ? job.jobLocation[0] : job?.jobLocation;
-    const address = jobLocation?.address;
-    return clean(
-      [
-        job?.jobLocationType === "TELECOMMUTE" ? "Remote" : "",
-        orgName(requirements),
-        address?.addressLocality,
-        address?.addressRegion,
-        address?.addressCountry,
-      ]
-        .filter(Boolean)
-        .join(", ")
-    );
-  }
-
-  function diceEmploymentTypeFromJsonLd(job) {
-    const value = jsonLdStringList(job?.employmentType).join(" ");
-    if (!value) return "";
-    const normalized = value.toUpperCase().replace(/[_\s]+/g, "_");
-    const labels = {
-      CONTRACTOR: "Contract",
-      TEMPORARY: "Contract",
-      FULL_TIME: "Full-time",
-      PART_TIME: "Part-time",
-    };
-    return labels[normalized] || clean(value);
-  }
-
-  function htmlToText(html) {
-    const template = document.createElement("template");
-    template.innerHTML = html || "";
-    return clean(template.content.textContent || "");
-  }
-
-  function unique(values) {
-    return Array.from(new Set(values.map(clean).filter(Boolean)));
-  }
-
-  function diceWizardHeaderText(detailLink) {
-    let element = detailLink;
-    for (let depth = 0; depth < 6 && element; depth += 1) {
-      const text = clean(element.textContent || "");
-      if (/^.+?\s*@\s*.+?\s+in\s+.+$/.test(text)) return text;
-      element = element.parentElement;
-    }
-    return "";
-  }
-
-  function formatAppliedAt(value) {
-    if (!value) return "";
-    const parsed = new Date(value);
-    if (Number.isNaN(parsed.getTime())) return value.split("T", 1)[0];
-    return parsed.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
-  }
-
-  function setLedgerBadge(application, { label = "Already applied", includeAppliedAt = true, sourceUrl = "" } = {}) {
-    const existing = document.getElementById(LEDGER_BADGE_ID);
-    if (!application) {
-      existing?.remove();
-      visibleBadgeSourceUrl = "";
-      return;
-    }
-    const badge = existing || document.createElement("div");
-    const badgeSourceUrl = sourceUrl || application.source_url || "";
-    visibleBadgeSourceUrl = badgeSourceUrl;
-    badge.id = LEDGER_BADGE_ID;
-    badge.dataset.sourceUrl = badgeSourceUrl;
-    badge.setAttribute("role", "status");
-    badge.style.position = "fixed";
-    badge.style.right = "18px";
-    badge.style.bottom = "18px";
-    badge.style.zIndex = "2147483647";
-    badge.style.maxWidth = "320px";
-    badge.style.border = "1px solid #b8d8ca";
-    badge.style.borderRadius = "8px";
-    badge.style.padding = "10px 12px";
-    badge.style.background = "#e3f1eb";
-    badge.style.boxShadow = "0 10px 28px rgba(23, 32, 28, 0.14)";
-    badge.style.color = "#15533f";
-    badge.style.font = "700 13px/1.35 ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
-    const appliedAt = includeAppliedAt ? formatAppliedAt(application.applied_at) : "";
-    const role = application.title || "this role";
-    const company = application.company ? ` at ${application.company}` : "";
-    badge.textContent = `${label}${appliedAt ? ` ${appliedAt}` : ""}: ${role}${company}`;
-    if (!existing) {
-      document.documentElement.appendChild(badge);
-    }
+    return (await diceOpportunity.detailOpportunity(wizardMatch[1])) || diceOpportunity.wizardPageOpportunity(wizardMatch[1]);
   }
 
   async function lookupApplication(sourceUrl) {
@@ -356,28 +160,27 @@
 
   let badgeLookupTimer = 0;
   let lastBadgeLookupKey = "";
-  let visibleBadgeSourceUrl = "";
 
   function setFreshLedgerBadge(application, label, sourceUrl) {
-    setLedgerBadge(application, { label, includeAppliedAt: false, sourceUrl });
+    ledgerBadge.set(application, { label, includeAppliedAt: false, sourceUrl });
   }
 
   async function updateLedgerBadge({ force = false } = {}) {
     const rule = currentRule();
     if (!rule) {
-      setLedgerBadge(null);
+      ledgerBadge.clear();
       return;
     }
     const opportunity = await currentOpportunity(rule);
     const sourceUrl = opportunity?.source_url || location.href;
     if (!sourceUrl) {
-      setLedgerBadge(null);
+      ledgerBadge.clear();
       return;
     }
-    if (!force && visibleBadgeSourceUrl === sourceUrl) return;
-    if (!force && !visibleBadgeSourceUrl && sourceUrl === lastBadgeLookupKey) return;
+    if (!force && ledgerBadge.sourceUrl() === sourceUrl) return;
+    if (!force && !ledgerBadge.sourceUrl() && sourceUrl === lastBadgeLookupKey) return;
     lastBadgeLookupKey = sourceUrl;
-    setLedgerBadge(await lookupApplication(sourceUrl), { sourceUrl });
+    ledgerBadge.set(await lookupApplication(sourceUrl), { sourceUrl });
   }
 
   function scheduleLedgerBadgeRefresh(delay = 500, options = {}) {
