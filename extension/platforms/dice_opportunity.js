@@ -110,6 +110,17 @@
     return Array.from(root.querySelectorAll('a')).find((link) => clean(link.textContent || link.getAttribute("aria-label") || "") === "Easy Apply") || null;
   }
 
+  function isDiceApplicationWizardUrl(value) {
+    const url = absoluteUrl(value);
+    if (!url) return false;
+    try {
+      const parsed = new URL(url);
+      return parsed.hostname.includes("dice.com") && /^\/job-applications\/[^/]+\/wizard(?:\/|$)/.test(parsed.pathname);
+    } catch (_error) {
+      return false;
+    }
+  }
+
   function searchResultPostings(root = document) {
     if (!location.hostname.includes("dice.com") || location.pathname !== "/jobs") return [];
     const seenUrls = new Set();
@@ -134,7 +145,7 @@
   function detailEasyApplyLink(root = document) {
     if (!location.hostname.includes("dice.com") || !location.pathname.startsWith("/job-detail/")) return null;
     const link = root.querySelector('[data-testid="apply-button"]');
-    if (!link || clean(link.textContent || link.getAttribute("aria-label") || "") !== "Easy Apply") return null;
+    if (!link || !isDiceApplicationWizardUrl(link.getAttribute("href") || "")) return null;
     return link;
   }
 
@@ -154,7 +165,6 @@
       return { clicked: false, error: "Dice Easy Apply control was not found on the detail page." };
     }
     const nextUrl = absoluteUrl(link.getAttribute("href") || "");
-    setTimeout(() => link.click(), 0);
     return { clicked: true, next_url: nextUrl };
   }
 
@@ -226,6 +236,7 @@
     companyContext,
     detailOpportunity,
     employmentTypeFromJsonLd,
+    isDiceApplicationWizardUrl,
     jobPostingJsonLd,
     jobSkills,
     locationFromJsonLd,

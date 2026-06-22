@@ -86,9 +86,14 @@ def test_dice_posting_picker_opens_selected_jobs_and_advances_page() -> None:
     assert "APPLICATION_DRAFT_LIST_POSTINGS" in picker
     assert "APPLICATION_DRAFT_CLICK_DICE_EASY_APPLY" in picker
     assert "waitForTabComplete" in picker
+    assert "function reloadDiceTab" in picker
+    assert "await chrome.tabs.reload(tabId)" in picker
+    assert "function isDiceApplicationWizardUrl" in picker
     assert "chrome.tabs.update(tab.id, { url: nextUrl })" in picker
+    assert "await reloadDiceTab(tab.id)" in picker
     assert "openPostingAndClickEasyApply" in picker
-    assert "chrome.tabs.create({ url: posting.url, active: false })" in picker
+    assert "chrome.tabs.create({ url: posting.easy_apply_url || posting.url, active: false })" in picker
+    assert "chrome.tabs.update(tabId, { url: response.next_url })" in picker
     assert "Promise.all(selectedPostings.map(async (posting) =>" in picker
     assert "await advanceActivePage()" in picker
     assert "Loaded next Dice results page." in picker

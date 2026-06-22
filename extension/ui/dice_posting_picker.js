@@ -107,6 +107,21 @@
       throw new Error("Opened tab did not finish loading.");
     }
 
+    async function reloadDiceTab(tabId) {
+      await chrome.tabs.reload(tabId);
+      await sleep(250);
+      await waitForTabComplete(tabId);
+    }
+
+    function isDiceApplicationWizardUrl(value) {
+      try {
+        const url = new URL(value || "");
+        return url.hostname.includes("dice.com") && /^\/job-applications\/[^/]+\/wizard(?:\/|$)/.test(url.pathname);
+      } catch (_error) {
+        return false;
+      }
+    }
+
     async function refresh() {
       const tab = await activeTab();
       if (!nextDiceResultsUrl(tab.url || "")) {
@@ -124,6 +139,7 @@
       if (!nextUrl) throw new Error("The active tab is not a Dice results page.");
       await chrome.tabs.update(tab.id, { url: nextUrl });
       await waitForTabComplete(tab.id);
+      await reloadDiceTab(tab.id);
       await refresh();
     }
 
@@ -131,6 +147,11 @@
       const response = await chrome.tabs.sendMessage(tabId, { type: "APPLICATION_DRAFT_CLICK_DICE_EASY_APPLY" });
       if (!response?.ok) throw new Error(response?.error || "Could not click Dice Easy Apply.");
       if (!response.clicked) throw new Error(response.error || "Dice Easy Apply control was not found.");
+      if (response.next_url) {
+        await chrome.tabs.update(tabId, { url: response.next_url });
+        await waitForTabComplete(tabId);
+        await reloadDiceTab(tabId);
+      }
       return response;
     }
 
@@ -144,9 +165,14 @@
     }
 
     async function openPostingAndClickEasyApply(posting) {
-      const tab = await chrome.tabs.create({ url: posting.url, active: false });
+      const tab = await chrome.tabs.create({ url: posting.easy_apply_url || posting.url, active: false });
       if (!tab?.id) throw new Error("Could not open Dice posting tab.");
       await waitForTabComplete(tab.id);
+      await reloadDiceTab(tab.id);
+      const currentTab = await chrome.tabs.get(tab.id);
+      if (isDiceApplicationWizardUrl(currentTab?.url || "")) {
+        return { clicked: true, next_url: currentTab.url };
+      }
       return clickDiceEasyApplyInTab(tab.id);
     }
 

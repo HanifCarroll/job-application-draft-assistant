@@ -102,11 +102,15 @@ def test_dice_extractor_uses_shared_declared_contracts() -> None:
     assert 'type === "JobPosting"' in dice_helper
     assert "function detailOpportunity" in dice_helper
     assert "function searchResultPostings" in dice_helper
+    assert "function isDiceApplicationWizardUrl" in dice_helper
+    assert "^\\/job-applications\\/[^/]+\\/wizard" in dice_helper
     assert 'location.pathname !== "/jobs"' in dice_helper
     assert 'querySelectorAll(\'[data-testid="job-card"]\')' in dice_helper
     assert "card.querySelector('[data-testid=\"job-search-job-detail-link\"]')" in dice_helper
     assert "easy_apply_url: absoluteUrl(easyApply.getAttribute(\"href\") || \"\") || url" in dice_helper
     assert 'root.querySelector(\'[data-testid="apply-button"]\')' in dice_helper
+    assert "isDiceApplicationWizardUrl(link.getAttribute(\"href\") || \"\")" in dice_helper
+    assert "setTimeout(() => link.click()" not in dice_helper
     assert 'location.pathname.startsWith("/job-detail/")' in dice_helper
     assert "clickDetailEasyApply" in dice_helper
     assert 'clean(node.textContent) === "Job Details"' in dice_helper
