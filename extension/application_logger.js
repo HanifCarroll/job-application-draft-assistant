@@ -5,6 +5,10 @@
   globalThis.__jobApplicationLoggerLoaded = true;
 
   const CONFIRMED_KEY = "jobApplicationLoggerConfirmed";
+  const LINKEDIN_AUTO_SUBMIT_DELAY = 1000;
+  const LINKEDIN_AUTO_CLOSE_DELAY = 500;
+  const LINKEDIN_RECENT_SUBMIT_MS = 30000;
+  const LINKEDIN_AUTO_SUBMITTED_AT_KEY = "jobApplicationLinkedInAutoSubmittedAt";
   const diceOpportunity = globalThis.JobApplicationDiceOpportunity;
   const coverLetterRuns = globalThis.JobApplicationDiceCoverLetterRuns;
   const ledgerBadge = globalThis.JobApplicationLedgerBadge;
@@ -88,6 +92,7 @@
       submitSelectors: ['.jobs-easy-apply-modal__content button[data-live-test-easy-apply-submit-button]'],
       submitText: "Submit application",
       submitButtons: [{ selector: ".jobs-easy-apply-modal__content button", text: "Submit application" }],
+      autoEasyApply: true,
       confirmationSelectors: [
         { selector: ".jobs-easy-apply-modal__content button", text: "Done" },
         { selector: ".jobs-easy-apply-modal__content button", text: "Not now" },
@@ -156,6 +161,78 @@
 
   function matchesSubmit(rule, event) {
     return eventElements(event).some((target) => matchesSubmitElement(rule, target));
+  }
+
+  function activeLinkedInEasyApplyContent() {
+    return document.querySelector(".jobs-easy-apply-modal__content");
+  }
+
+  function linkedinCheckedFollowLabel(root) {
+    const checkbox = root?.querySelector("#follow-company-checkbox");
+    if (!(checkbox instanceof HTMLInputElement)) return null;
+    if (checkbox.type !== "checkbox" || !checkbox.checked) return null;
+    return checkbox.labels?.[0] || checkbox;
+  }
+
+  function linkedinFinalSubmitButton(root) {
+    return Array.from(root?.querySelectorAll("button") || []).find((button) => {
+      return !button.disabled && buttonText(button) === "Submit application";
+    });
+  }
+
+  function linkedinRecentAutoSubmit() {
+    const submittedAt = Number(sessionStorage.getItem(LINKEDIN_AUTO_SUBMITTED_AT_KEY) || 0);
+    return submittedAt > 0 && Date.now() - submittedAt < LINKEDIN_RECENT_SUBMIT_MS;
+  }
+
+  function linkedinPostSubmitButton() {
+    if (!linkedinRecentAutoSubmit()) return null;
+    const roots = document.querySelectorAll(".jobs-easy-apply-modal__content, .jobs-easy-apply-modal, .artdeco-modal");
+    for (const root of roots) {
+      const button = Array.from(root.querySelectorAll("button")).find((candidate) => {
+        return !candidate.disabled && ["Done", "Not now"].includes(buttonText(candidate));
+      });
+      if (button) return button;
+    }
+    return null;
+  }
+
+  function scheduleElementClick(element, delay, datasetKey, beforeClick) {
+    if (!element || element.disabled || element.dataset[datasetKey]) return;
+    element.dataset[datasetKey] = "true";
+    window.setTimeout(() => {
+      if (!element.isConnected || element.disabled) return;
+      Promise.resolve(beforeClick?.())
+        .catch(() => {})
+        .then(() => {
+          if (element.isConnected && !element.disabled) {
+            element.click();
+          }
+        });
+    }, delay);
+  }
+
+  function automateLinkedInEasyApply(rule) {
+    const root = activeLinkedInEasyApplyContent();
+    if (root) {
+      const followLabel = linkedinCheckedFollowLabel(root);
+      if (followLabel) {
+        followLabel.click();
+      }
+      scheduleElementClick(linkedinFinalSubmitButton(root), LINKEDIN_AUTO_SUBMIT_DELAY, "jobApplicationAutoSubmitClicked", async () => {
+        sessionStorage.setItem(LINKEDIN_AUTO_SUBMITTED_AT_KEY, String(Date.now()));
+        await capturePending(rule);
+      });
+    }
+    scheduleElementClick(linkedinPostSubmitButton(), LINKEDIN_AUTO_CLOSE_DELAY, "jobApplicationAutoCloseClicked");
+  }
+
+  function runPlatformAutomation() {
+    const rule = currentRule();
+    if (!rule?.autoEasyApply) return;
+    if (rule.source === "linkedin") {
+      automateLinkedInEasyApply(rule);
+    }
   }
 
   async function diceWizardOpportunity() {
@@ -282,6 +359,9 @@
       if (!rule) return;
       scheduleLedgerBadgeRefresh(300, { force: true });
       if (matchesSubmit(rule, event)) {
+        if (rule.source === "linkedin") {
+          sessionStorage.setItem(LINKEDIN_AUTO_SUBMITTED_AT_KEY, String(Date.now()));
+        }
         capturePending(rule).catch(() => {});
       }
     },
@@ -289,18 +369,21 @@
   );
 
   const observer = new MutationObserver(() => {
+    runPlatformAutomation();
     confirmIfReady().catch(() => {});
     scheduleLedgerBadgeRefresh(1200);
   });
   observer.observe(document.documentElement, {
     attributes: true,
-    attributeFilter: ["applied", "aria-label", "cta-type", "data-testid", "destination", "headline", "href", "selected"],
+    attributeFilter: ["applied", "aria-label", "cta-type", "data-testid", "destination", "disabled", "headline", "href", "selected"],
     childList: true,
     subtree: true,
   });
+  runPlatformAutomation();
   confirmIfReady().catch(() => {});
   scheduleLedgerBadgeRefresh(500);
   window.setTimeout(() => {
+    runPlatformAutomation();
     confirmIfReady().catch(() => {});
     scheduleLedgerBadgeRefresh(0);
   }, 1000);

@@ -101,7 +101,25 @@ def test_application_logger_tracks_linkedin_easy_apply_submission_states() -> No
     assert 'hosts: ["linkedin.com"]' in logger
     assert '.jobs-easy-apply-modal__content button[data-live-test-easy-apply-submit-button]' in logger
     assert '{ selector: ".jobs-easy-apply-modal__content button", text: "Submit application" }' in logger
+    assert "autoEasyApply: true" in logger
     assert '{ selector: ".jobs-easy-apply-modal__content button", text: "Done" }' in logger
     assert '{ selector: ".jobs-easy-apply-modal__content button", text: "Not now" }' in logger
     assert '{ selector: "#jobs-apply-see-application-link" }' in logger
     assert '{ selector: \'.artdeco-inline-feedback--success[role="alert"]\', textPrefix: "Applied" }' in logger
+
+
+def test_application_logger_automates_linkedin_easy_apply_final_review() -> None:
+    logger = read("application_logger.js")
+
+    assert "LINKEDIN_AUTO_SUBMIT_DELAY = 1000" in logger
+    assert "LINKEDIN_AUTO_CLOSE_DELAY = 500" in logger
+    assert 'document.querySelector(".jobs-easy-apply-modal__content")' in logger
+    assert 'root?.querySelector("#follow-company-checkbox")' in logger
+    assert 'checkbox.labels?.[0] || checkbox' in logger
+    assert 'buttonText(button) === "Submit application"' in logger
+    assert '["Done", "Not now"].includes(buttonText(candidate))' in logger
+    assert 'element.dataset[datasetKey] = "true"' in logger
+    assert "capturePending(rule)" in logger
+    assert "element.click()" in logger
+    assert "runPlatformAutomation()" in logger
+    assert '"disabled"' in logger

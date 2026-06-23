@@ -78,9 +78,9 @@ The extension uses site adapters that convert each page into the same normalized
 | Indeed | Search result pages with the selected job detail panel. |
 | ZipRecruiter | Search result pages with the selected job detail pane. |
 | Robert Half | Search result pages with the selected job detail card. |
-| LinkedIn | Job search/detail pages with the selected job detail card and Easy Apply confirmation states. |
+| LinkedIn | Job search/detail pages with the selected job detail card and Easy Apply final-review automation. |
 
-The extension reads the job page you are viewing. Clicking the extension action opens a persistent side panel. On Dice search results, the panel can open selected visible Easy Apply postings from the current page in new tabs, click each detail page's Easy Apply link, then advance the original results tab to the next page and refresh the list. The panel also has a `Next page` button for skipping a results page without opening anything. It does not crawl job boards. On Dice application wizard pages, the side panel shows all active cover-letter PDF runs, keeps completed PDF actions available, and the page automation can click `Next` after the generated cover letter is attached and click `Submit` when Dice shows the review submit control.
+The extension reads the job page you are viewing. Clicking the extension action opens a persistent side panel. On Dice search results, the panel can open selected visible Easy Apply postings from the current page in new tabs, click each detail page's Easy Apply link, then advance the original results tab to the next page and refresh the list. The panel also has a `Next page` button for skipping a results page without opening anything. It does not crawl job boards. On Dice application wizard pages, the side panel shows all active cover-letter PDF runs, keeps completed PDF actions available, and the page automation can click `Next` after the generated cover letter is attached and click `Submit` when Dice shows the review submit control. On LinkedIn Easy Apply final-review modals, the content script unchecks `Follow`, clicks `Submit application`, and closes LinkedIn's post-submit `Done` or `Not now` prompt when it appears.
 
 Application logging is conservative. The draft side panel provides a manual `Mark Applied` action for the current job snapshot. A separate content script also records a pending snapshot when a known platform submit control is clicked, then logs the application only after a platform-specific confirmation selector or confirmation URL is observed. Unknown application flows are not guessed from page-wide text.
 
@@ -261,7 +261,7 @@ After an application is logged with an attached cover letter draft, the backend 
 
 The draft side panel enables `Generate PDF` after a cover letter draft succeeds. PDF generation is started through the extension background service worker and persisted in `chrome.storage.local`, so closing the side panel does not own or clear the in-progress export state. After generation, `Finder` asks the local backend to reveal the generated PDF file. The backend only reveals files it generated under the configured PDF output directory.
 
-On Dice application wizard pages, the extension can automatically generate the cover letter PDF and reports each in-progress or completed run in the Dice side panel. Completed runs expose `Open PDF`, `Finder`, and regenerate actions from the side panel. After generation, the assistant attaches the PDF to Dice's cover-letter upload input. After Dice shows the attached PDF in the cover-letter card, the assistant clicks `Next`, clicks `Submit` on the review step, records the confirmed application, and closes the submitted Dice tab.
+On Dice application wizard pages, the extension can automatically generate the cover letter PDF and reports each in-progress or completed run in the Dice side panel. Completed runs expose `Open PDF`, `Finder`, and regenerate actions from the side panel. After generation, the assistant attaches the PDF to Dice's cover-letter upload input. After Dice shows the attached PDF in the cover-letter card, the assistant clicks `Next`, clicks `Submit` on the review step, records the confirmed application, and closes the submitted Dice tab. On LinkedIn Easy Apply final-review modals, the extension unchecks the `Follow` box, clicks `Submit application`, records the confirmed application after LinkedIn shows an applied state, and closes the post-submit prompt when LinkedIn shows one.
 
 ## Privacy And Data Retention
 
@@ -279,7 +279,7 @@ Stored locally:
 
 Not intentionally stored or sent:
 
-- Outside the Dice Easy Apply wizard automation, the extension does not submit applications or proposals.
+- Outside Dice Easy Apply wizard automation and LinkedIn Easy Apply final-review automation, the extension does not submit applications or proposals.
 - The backend does not call job-board APIs.
 - The project does not include analytics.
 
