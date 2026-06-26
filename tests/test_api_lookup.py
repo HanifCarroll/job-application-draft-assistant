@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
 from fastapi.testclient import TestClient
 
 import job_application_draft_assistant.api as api
@@ -10,7 +11,7 @@ from job_application_draft_assistant.config import AppPaths
 
 def test_lookup_misses_return_200_with_unmatched_payload(
     tmp_path: Path,
-    monkeypatch,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     paths = AppPaths(
         context_dir=tmp_path / "context",

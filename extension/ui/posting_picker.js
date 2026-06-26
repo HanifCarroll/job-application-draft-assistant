@@ -130,6 +130,11 @@
       }
     }
 
+    function scrollPostingListToTop() {
+      els.postingList.scrollTop = 0;
+      els.postingList.scrollLeft = 0;
+    }
+
     function render(nextPostings, { showEmpty = false, platform = activePlatform } = {}) {
       activePlatform = platform;
       updatePlatformLabels();
@@ -257,6 +262,7 @@
       await waitForTabComplete(tab.id);
       await reloadTab(tab.id);
       await refresh();
+      scrollPostingListToTop();
     }
 
     async function sendClickApplyControlMessage(tabId) {
@@ -316,10 +322,33 @@
       }
     }
 
+    function reportApplyControlFlowFailure(result) {
+      if (!result?.error) return;
+      els.postingStatus.textContent = result.error;
+      setStatus(result.error, "error");
+    }
+
+    function startApplyControlFlowWithoutWaiting(opened) {
+      void startApplyControlFlowResult(opened)
+        .then(reportApplyControlFlowFailure)
+        .catch((error) => reportApplyControlFlowFailure({
+          opened,
+          error: `${opened.posting.title}: ${error.message || `${postingNoun()} was not started.`}`,
+        }));
+    }
+
+    async function startApplyControlFlows(openedPostings) {
+      if (activePlatform?.source === "dice") {
+        openedPostings.forEach(startApplyControlFlowWithoutWaiting);
+        return openedPostings.map((opened) => ({ opened, error: "" }));
+      }
+      return Promise.all(openedPostings.map(startApplyControlFlowResult));
+    }
+
     async function openSelectedPostings(selectedPostings) {
       const openedResults = await Promise.all(selectedPostings.map(openPostingTabResult));
       const openedPostings = openedResults.map((result) => result.opened).filter(Boolean);
-      const flowResults = await Promise.all(openedPostings.map(startApplyControlFlowResult));
+      const flowResults = await startApplyControlFlows(openedPostings);
       return [
         ...openedResults.filter((result) => result.error),
         ...flowResults,

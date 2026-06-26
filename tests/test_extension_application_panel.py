@@ -206,16 +206,26 @@ def test_posting_picker_opens_selected_jobs_and_advances_page() -> None:
     assert "chrome.tabs.update(tabId, { active: true })" in picker
     assert "chrome.tabs.update(tab.id, { url: nextUrl })" in picker
     assert "await reloadTab(tab.id)" in picker
+    assert "function scrollPostingListToTop" in picker
+    assert "els.postingList.scrollTop = 0" in picker
+    assert "els.postingList.scrollLeft = 0" in picker
+    assert "await refresh();\n      scrollPostingListToTop();" in picker
     assert "function openPostingTab" in picker
     assert "function clickApplyControlInOpenedTab" in picker
     assert "function openPostingTabResult" in picker
     assert "function startApplyControlFlowResult" in picker
+    assert "function startApplyControlFlowWithoutWaiting" in picker
+    assert "function startApplyControlFlows" in picker
     assert "function openSelectedPostings" in picker
     assert "chrome.tabs.create({ url: posting.easy_apply_url || posting.url, active: false })" in picker
     assert "chrome.tabs.update(tabId, { url: response.next_url })" in picker
     assert "response.reload_after_navigation !== false" in picker
     assert "const openedResults = await Promise.all(selectedPostings.map(openPostingTabResult))" in picker
-    assert "const flowResults = await Promise.all(openedPostings.map(startApplyControlFlowResult))" in picker
+    assert 'if (activePlatform?.source === "dice")' in picker
+    assert "openedPostings.forEach(startApplyControlFlowWithoutWaiting)" in picker
+    assert 'return openedPostings.map((opened) => ({ opened, error: "" }))' in picker
+    assert "const flowResults = await startApplyControlFlows(openedPostings)" in picker
+    assert "const flowResults = await Promise.all(openedPostings.map(startApplyControlFlowResult))" not in picker
     assert "const results = await openSelectedPostings(selectedPostings)" in picker
     assert "for (const posting of selectedPostings)" not in picker
     assert "openedTabs.forEach(startApplyControlFlow)" not in picker
